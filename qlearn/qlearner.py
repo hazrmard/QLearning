@@ -43,6 +43,7 @@ class QLearner:
                 _softmax]_policy
             mode/policy/lrate/discount/rmatrix/tmatrix/goal: Same as args.
             _action_param: A dict of helper values for GREEDY | SOFTMAX calcs.
+            next_state (func): Returns next state given current state, action.
         """
         self.set_reward_matrix(rmatrix)
         self.set_transition_matrix(tmatrix)
@@ -54,14 +55,14 @@ class QLearner:
         self.set_action_selection_policy(policy, mode, **kwargs)
 
 
-    def set_action_selection_policy(self, policy, mode, **kwargs):
+    def set_action_selection_policy(self, policy, mode=0, **kwargs):
         """
         Sets a policy for selecting subsequent actions while in a learning
         episode.
 
         Args:
             policy (int): One of QLearner.[UNIFORM | GREEDY | SOFTMAX].
-            mode (int): One of QLearner.[OFFLINE | ONLINE].
+            mode (int): One of QLearner.[OFFLINE | ONLINE]. Default OFFLINE.
             max_prob (float): Probability of choosing action with highest utility [0, 1).
         """
         self._action_param = {}
@@ -74,9 +75,9 @@ class QLearner:
             if 'max_prob' in kwargs:
                 self._action_param['max_prob'] = kwargs['max_prob'] \
                                      - (1 - kwargs['max_prob']) / self.rmatrix.shape[1]
+                self._policy = self._greedy_policy
             else:
                 raise KeyError('"max_prob" keyword argument needed for GREEDY policy.')
-            self._policy = self._greedy_policy
 
         elif policy == QLearner.SOFTMAX:
             self._policy = self._softmax_policy
@@ -130,10 +131,14 @@ class QLearner:
             where tmatrix[state, action] contains index of next state.
         """
         if tmatrix is not None:
-            if isinstance(tmatrix, str):
+            if isinstance(tmatrix, str):    # if filepath, read file to matrix
                 tmatrix = utils.read_matrix(tmatrix)
+            elif not isinstance(tmatrix, np.ndarray): # if not filepath, must be array
+                raise TypeError('tmatrix should be ndarray or filepath string.')
             if tmatrix.shape != self.rmatrix.shape:
                 raise ValueError('Transition and R matrix must have same shape.')
+            if tmatrix.dtype != int:
+                raise TypeError('Transition matrix must have integer contents.')
             self.tmatrix = tmatrix
             self.next_state = lambda s, a: self.tmatrix[s, a]
         else:
@@ -194,7 +199,7 @@ class QLearner:
         Q matrix with utility for each (state, action).
         """
         for state in self.episodes():
-            if self.policy == QLearner.OFFLINE:
+            if self.mode == QLearner.OFFLINE:
                 self._update_policy()
             while not self.goal(state):
                 action = self.next_action(state)
@@ -226,12 +231,15 @@ class QLearner:
             Index of action in [r|q]matrix.
         """
         if self.mode == QLearner.ONLINE:
-            if np.random.uniform() < self._action_param:
+            if np.random.uniform() < self._action_param['max_prob']:
                 return np.argmax(self.qmatrix[state])
             else:
                 return np.random.randint(self.qmatrix.shape[1])
         elif self.mode == QLearner.OFFLINE:
-            pass
+            if np.random.uniform() < self._action_param['max_prob']:
+                return self._action_param['max_util_indices'][state]
+            else:
+                return np.random.randint(self.qmatrix.shape[1])
 
 
     def _softmax_policy(self, state):

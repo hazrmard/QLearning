@@ -45,22 +45,28 @@ def test_instantiation():
     Testing QLearner with initial arguments.
     """
     # Set-up:
-    rmatrix_sq = np.random.rand(4, 4)
-    rmatrix_rec = np.random.rand(4, 3)
-    tmatrix = np.random.randint(0, 4, size=(4, 3))
-    goal_l = (1, 2, 3)
-    goal_f = lambda x: x < 1
+    STATES = 10
+    ACTIONS = 5
+    rmatrix_sq = np.random.rand(STATES, STATES)
+    rmatrix_rec = np.random.rand(STATES, ACTIONS)
+    tmatrix = np.random.randint(0, STATES, size=(STATES, ACTIONS))
+    tmatrix[:, 2] = np.random.randint(0, 1, size=STATES) # making sure tmatrix points to goal states
+    goal_l = (0, 1)
+    goal_f = lambda x: x <= 1
     np.savetxt('test.dat', rmatrix_sq)
 
     # Test 1: list goal
     temp = QLearner(rmatrix_sq, goal_l)
     assert np.array_equal(temp.rmatrix, rmatrix_sq), "R matrix not equal to arg."
+    assert temp.goal(0) and temp.goal(1) and not temp.goal(2) and not temp.goal(3), \
+            'List goal not working.'
 
     # Test 2: function goal
-    QLearner(rmatrix_sq, goal_f)
+    temp = QLearner(rmatrix_sq, goal_f)
+    assert temp.goal(0) and temp.goal(1) and not temp.goal(2), 'Function goal not working.'
 
     # Test 3: File I/O
-    temp = QLearner('test.dat', goal_l, 'test.dat')
+    temp = QLearner('test.dat', goal_l)
     assert temp.qmatrix.shape == rmatrix_sq.shape, "Q & R matrix dimension mismatch."
     assert np.array_equal(temp.rmatrix, rmatrix_sq), "R matrix not equal to arg."
 
@@ -71,12 +77,13 @@ def test_instantiation():
         pass
 
     # Test 5: rectangular r matrix, t matrix of same dimension
-    QLearner(rmatrix_rec, goal_f, tmatrix)
+    temp = QLearner(rmatrix_rec, goal_f, tmatrix)
+    assert temp.next_state(1, 2) == tmatrix[1, 2], 'Next state prediction incorrect.'
 
     # Finalize
     os.remove('test.dat')
     global QLEARNER
-    QLEARNER = test
+    QLEARNER = temp
 
 
 @test
@@ -84,21 +91,52 @@ def test_offline_learning():
     """
     Testing uniform, softmax, greedy offline learning.
     """
-    pass
+    global QLEARNER
+    # Test 1: uniform
+    QLEARNER.set_action_selection_policy(QLearner.UNIFORM)
+    assert QLEARNER._policy == QLEARNER._uniform_policy, 'Incorrect policy set.'
+    assert QLEARNER.policy == QLearner.UNIFORM, 'Incorrect policy mode.'
+    QLEARNER.learn()
+
+    # Test 2: greedy
+    QLEARNER.set_action_selection_policy(QLearner.GREEDY, max_prob=0.5)
+    assert QLEARNER._policy == QLEARNER._greedy_policy, 'Incorrect policy set.'
+    assert QLEARNER.policy == QLearner.GREEDY, 'Incorrect policy mode.'
+    QLEARNER.learn()
+
+    # Test 3: softmax
+    QLEARNER.set_action_selection_policy(QLearner.SOFTMAX)
+    assert QLEARNER._policy == QLEARNER._softmax_policy, 'Incorrect policy set.'
+    assert QLEARNER.policy == QLearner.SOFTMAX, 'Incorrect policy mode.'
+    QLEARNER.learn()
+
 
 
 @test
 def test_online_learning():
     """
-    Testing uniform, softmax, greedy online learning.
+    Testing softmax, greedy online learning.
     """
-    pass
+    global QLEARNER
+    # Test 1: greedy
+    QLEARNER.set_action_selection_policy(QLearner.GREEDY, mode=QLearner.ONLINE, max_prob=0.5)
+    assert QLEARNER._policy == QLEARNER._greedy_policy, 'Incorrect policy set.'
+    assert QLEARNER.policy == QLearner.GREEDY, 'Incorrect policy mode.'
+    QLEARNER.learn()
+
+    # Test 2: softmax
+    QLEARNER.set_action_selection_policy(QLearner.SOFTMAX, mode=QLearner.ONLINE)
+    assert QLEARNER._policy == QLEARNER._softmax_policy, 'Incorrect policy set.'
+    assert QLEARNER.policy == QLearner.SOFTMAX, 'Incorrect policy mode.'
+    QLEARNER.learn()
 
 
 
 if __name__ == '__main__':
     print()
     test_instantiation()
+    test_offline_learning()
+    test_online_learning()
 
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))
