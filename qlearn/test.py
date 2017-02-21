@@ -50,7 +50,8 @@ def test_instantiation():
     rmatrix_sq = np.random.rand(STATES, STATES)
     rmatrix_rec = np.random.rand(STATES, ACTIONS)
     tmatrix = np.random.randint(0, STATES, size=(STATES, ACTIONS))
-    tmatrix[:, 2] = np.random.randint(0, 1, size=STATES) # making sure tmatrix points to goal states
+    # making sure tmatrix points to goal states:
+    tmatrix[:, ACTIONS-1] = np.random.randint(0, 1, size=STATES)
     goal_l = (0, 1)
     goal_f = lambda x: x <= 1
     np.savetxt('test.dat', rmatrix_sq)

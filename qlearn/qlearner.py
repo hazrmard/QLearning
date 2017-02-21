@@ -206,6 +206,20 @@ class QLearner:
                 self.qmatrix[state, action], state = self.utility(state, action)
 
 
+    def recommend(self, state):
+        """
+        Recommends an action based on the learned q matrix and current state.
+        Must be called after learn().
+
+        Args:
+            state (int): Index of current state in [r|q]matrix.
+
+        Returns:
+            Index of action to take (column) in [r|q]matrix.
+        """
+        return np.argmax(self.qmatrix[state])
+
+
     def _uniform_policy(self, state):
         """
         Selects an action based on a uniform probability distribution.
