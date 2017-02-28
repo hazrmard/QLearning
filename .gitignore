@@ -90,3 +90,5 @@ ENV/
 
 .vscode/
 models/
+*.autosave
+slprj/
