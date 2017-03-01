@@ -4,6 +4,7 @@ Tests for the linsim package.
 
 import os
 from elements import Element
+from elements import ElementMux
 from netlist import Netlist
 from simulate import Simulator
 from system import System
@@ -50,18 +51,55 @@ def test_element_class():
     def3 = "G1 N3 n2 n1 0 table=(0 0, 10 100)"
 
     # Test 1: checking definition parsing for default Element class
-    elem = Element(def1)
+    elem = Element(definition=def1)
     assert [str(n) for n in elem.nodes] == ['n1', '0'], 'Nodes incorrectly parsed.'
-    assert elem.value == ['100k',], 'Value incorrectly parsed.'
+    assert elem.value == '100k', 'Value incorrectly parsed.'
 
-    elem = Element(def2)
+    elem = Element(definition=def2)
     assert [str(n) for n in elem.nodes] == ['n1', 'n2'], 'Nodes incorrectly parsed.'
-    assert elem.value == ['25u',], 'Value incorrectly parsed.'
+    assert elem.value == '25u', 'Value incorrectly parsed.'
 
-    elem = Element(def3)
+    elem = Element(definition=def3)
     assert [str(n) for n in elem.nodes] == ['n3', 'n2'], 'Nodes incorrectly parsed.'
-    assert elem.value == ['n1', '0'], 'Value incorrectly parsed.'
+    assert elem.value == 'n1 0', 'Value incorrectly parsed.'
     assert hasattr(elem, 'table'), 'Param=Value pair incorrectly parsed.'
+    assert elem.param('table') == '(0 0,10 100)', 'Param fetching failed.'
+
+    # Test 2: checking argument/keyword parsing for default Element class
+    elem = Element('T1', 10, 12, 100, k1=1, K2=2)
+    assert str(elem) == 't1 10 12 100 k1=1 k2=2', 'Arg parsing failed.'
+
+
+@test
+def test_element_mux():
+    """Test the element multiplexer for subclass instantiation"""
+
+    # Set up
+    class a:
+        prefix = 'a'
+        def __init__(self, *args, **kwargs):
+            pass
+    class b(a):
+        prefix = 'b'
+    class bc(b):
+        prefix = 'bc'
+    class x(a):
+        prefix = 'x'
+    def_b = 'b200 blah blah'
+    def_bc = 'bcb1 blah blah blah'
+    def_a = 'a7 asdjaa alskdj'
+    def_other = 'j20 asd knwe'
+
+    # Test 1: Testing mux generation
+    mux = ElementMux(root=a)
+    assert set(mux.prefix_list) == set(['b', 'bc', 'x']), \
+                'Element mux generation failed.'
+
+    # Test 2: Testing multiplexing
+    assert mux.mux(def_b).prefix == 'b', 'Incorrect multiplexing.'
+    assert mux.mux(def_bc).prefix == 'bc', 'Incorrect multiplexing.'
+    assert mux.mux(def_a).prefix == 'a', 'Incorrect multiplexing.'
+    assert mux.mux(def_other).prefix == 'a', 'Incorrect multiplexing.'
 
 
 @test
@@ -96,6 +134,7 @@ def test_netlist_io():
 if __name__ == '__main__':
     print()
     test_element_class()
+    test_element_mux()
     test_netlist_io()
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))

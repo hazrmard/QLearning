@@ -3,6 +3,9 @@ This module defines the Netlist class. It is responsible for parsing and
 editing the netlist.
 """
 
+from elements import Element
+from blocks import Block
+
 
 class Netlist:
     """
@@ -10,7 +13,7 @@ class Netlist:
 
     Args:
         path (str): Path to netlist file. Specify either this OR netlist.
-        netlist (str): The entire netlist string.
+        netlist (tuple/list): Netlist in newline separated elements.
 
     Attributes:
         netlist (list): A list of netlist comments/elements/directives.
@@ -59,6 +62,20 @@ class Netlist:
                 self.elements.append(line)
 
 
+    def parse_blocks(self):
+        """
+        Parses (nested) block elements (subcircuits).
+        """
+        pass
+
+
+    def parse_directives(self):
+        """
+        Parses directives from a netlist.
+        """
+        pass
+
+
     def modify_element(self, elem, line):
         """
         Modifies the netlist based on the directive(s) passed. Looks up
@@ -97,6 +114,9 @@ class Netlist:
         """
         Checks whether a line defines a component.
 
+        Args:
+            line (str): A line in the netlist.
+
         Returns:
             boolean -> True if line is component.
         """
@@ -107,10 +127,26 @@ class Netlist:
         """
         Checks whether a line is a directive.
 
+        Args:
+            line (str): A line in the netlist.
+
         Returns:
             boolean -> True if line is directive.
         """
         return line[0] == '.'
+
+
+    def is_block(self, line):
+        """
+        Checks whether a line is a block definition (subcircuit).
+
+        Args:
+            line (str): A line in the netlist.
+
+        Returns:
+            A boolean -> True of line is block definition directive.
+        """
+        pass
 
 
     def get_id(self, line):
