@@ -7,7 +7,7 @@ from elements import Element
 from blocks import Block
 
 
-class Netlist:
+class Netlist(Block):
     """
     Netlist class parses a circuit netlist and applies modifications.
 
@@ -108,32 +108,6 @@ class Netlist:
         """
         self.netlist = self.elements + self.directives
         return '\n'.join(self.netlist)
-
-
-    def is_element(self, line):
-        """
-        Checks whether a line defines a component.
-
-        Args:
-            line (str): A line in the netlist.
-
-        Returns:
-            boolean -> True if line is component.
-        """
-        return line[0] != '*' and line[0] != '.'
-
-
-    def is_directive(self, line):
-        """
-        Checks whether a line is a directive.
-
-        Args:
-            line (str): A line in the netlist.
-
-        Returns:
-            boolean -> True if line is directive.
-        """
-        return line[0] == '.'
 
 
     def is_block(self, line):

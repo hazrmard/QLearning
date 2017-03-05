@@ -1,9 +1,13 @@
 """
 This module defines the Element class and its derivatives. They are the atomic
 parts of a netlist/circuit.
+
+It also defines DEFAULT_MUX (ElementMux) which contains standard element
+definitions as defined in this module.
 """
 
 import re
+from nodes import Node
 
 
 class Element:
@@ -28,7 +32,7 @@ class Element:
         name (str): Element type (e.g. Resistor, Capacitor)
         value_regex (str): Regular expression pattern to match all single
             values in: VALUE1 VALUE2 PARAM1=VALUE3 PARAM2=VALUE4
-        param_regex: Regular expression pattern to match all PARAM=VALUE pairs.
+        pair_regex: Regular expression pattern to match all PARAM=VALUE pairs.
     """
     num_nodes = 2
     prefix = ''
@@ -62,8 +66,19 @@ class Element:
         """
         Returns a netlist description of the element.
         """
-        return self.name + ' ' + ' '.join(self.nodes) + ' ' + str(self.value) + \
+        nodes = ' '.join([str(n) for n in self.nodes])
+        return self.name + ' ' + nodes + ' ' + str(self.value) + \
                 ' ' + ' '.join([k+'='+v for k, v in self.kwargs.items()])
+
+
+    def __eq__(self, other):
+        """
+        Equality check by element name. Does NOT compare definition.
+        """
+        if isinstance(other, Element):
+            return other.name == self.name
+        else:
+            return other.__eq__(self.name)
 
 
     def param(self, param, value=None):
@@ -101,7 +116,7 @@ class Element:
             raise ValueError('Incorrect element type.')
 
         self.name = split[0]
-        self.nodes = [x for x in split[1:1+self.num_nodes]]
+        self.nodes = [Node(x) for x in split[1:1+self.num_nodes]]
 
         # Construct the remaining value and param=value pair string
         value_str = ' '.join(split[1+self.num_nodes:])
@@ -195,6 +210,10 @@ class ElementMux:
     Class Attributes:
         identifier (func): A function that returns the identifier for an element.
             Default returns the class prefix attribute.
+
+    Instance Attributes:
+        subclasses (list): List of subclasses (class) managed by mux.
+        prefix_list (list): list of prefixes (str) managed by mux.
     """
 
     identifier = lambda x: x.prefix
@@ -236,6 +255,34 @@ class ElementMux:
         self.prefix_list.sort(reverse=True, key=len)
 
 
+    def add(self, prefix, subclass):
+        """
+        Adds another prefix:subclass to the mux. Overrides existing definition.
+
+        Args:
+            prefix (str): Identifier for element type in definition e.g R for
+            resistor, C for capacitor etc.
+        """
+        self._mux[prefix] = subclass
+        self.subclasses.append(subclass)
+        if not prefix in self.prefix_list:
+            self.prefix_list.append(prefix)
+            self.prefix_list.sort(reverse=True, key=len)
+
+
+    def remove(self, prefix):
+        """
+        Removes particular prefix routing from mux.
+
+        Args:
+            prefix (string): Prefix of element definition to remove.
+        """
+        subclass = self._mux.get(prefix)
+        del self._mux[prefix]
+        self.prefix_list.remove(prefix)
+        self.subclasses.remove(subclass)
+
+
     def mux(self, definition):
         """
         Creates instance of a specific subclass based on matching name with
@@ -252,3 +299,11 @@ class ElementMux:
             if definition[:len(subclass)] == subclass:
                 return self._mux.get(subclass)(definition=definition)
         return self.root(definition=definition)
+
+
+
+"""
+DEFAULT_MUX includes all elements defined in this module. It is used by default
+by Block class to instantiate element definitions.
+"""
+DEFAULT_MUX = ElementMux()

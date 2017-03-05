@@ -13,8 +13,19 @@ class Node:
     """
 
     def __init__(self, name):
-        self.name = name
+        self.name = str(name)
 
 
     def __str__(self):
         return self.name
+
+
+    def __hash__(self):
+        return hash(self.name)
+
+
+    def __eq__(self, other):
+        if isinstance(other, Node):
+            return self.name == str(other.name)
+        else:
+            return other.__eq__(self.name)

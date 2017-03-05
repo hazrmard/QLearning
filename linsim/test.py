@@ -5,6 +5,8 @@ Tests for the linsim package.
 import os
 from elements import Element
 from elements import ElementMux
+from nodes import Node
+from blocks import Block
 from netlist import Netlist
 from simulate import Simulator
 from system import System
@@ -42,6 +44,27 @@ def test(func):
 
 
 @test
+def test_node_class():
+    """Test node class for hashing"""
+
+    # Set up
+    n1 = Node(1)
+    n2 = Node(2)
+    n1x = Node(1)
+    ndict = {}
+
+    # Test 1: Testing hashing into dictionary
+    ndict[n1] = 1
+    ndict[n2] = 2
+    assert ndict.get(n1) == 1, 'Improper node hashing.'
+    assert ndict.get(n2) == 2, 'Improper node hashing.'
+
+    # Test 2: Testing retrieval and equality checks
+    assert ndict.get(n1x) == ndict.get(n1), 'Node equality failed. Bad hashing.'
+    assert n1 == n1.name, 'Node equality failed with strings.'
+
+
+@test
 def test_element_class():
     """Test element class for parsing definitions"""
 
@@ -72,7 +95,7 @@ def test_element_class():
 
 @test
 def test_element_mux():
-    """Test the element multiplexer for subclass instantiation"""
+    """Test the element multiplexer"""
 
     # Set up
     class a:
@@ -100,6 +123,15 @@ def test_element_mux():
     assert mux.mux(def_bc).prefix == 'bc', 'Incorrect multiplexing.'
     assert mux.mux(def_a).prefix == 'a', 'Incorrect multiplexing.'
     assert mux.mux(def_other).prefix == 'a', 'Incorrect multiplexing.'
+
+    # Test 3: Testing mux editing
+    class k(a):
+        prefix = 'k'
+    mux.add('k', k)
+    assert mux.mux('k100 blah blah').prefix == 'k', 'Mux addition failed.'
+    mux.remove('k')
+    assert ('k' not in mux.prefix_list and 'k' not in mux._mux), \
+        'Mux deletion failed.'
 
 
 @test
@@ -133,6 +165,7 @@ def test_netlist_io():
 
 if __name__ == '__main__':
     print()
+    test_node_class()
     test_element_class()
     test_element_mux()
     test_netlist_io()
