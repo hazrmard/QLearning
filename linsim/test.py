@@ -3,6 +3,7 @@ Tests for the linsim package.
 """
 
 import os
+from flags import FlagGenerator
 from elements import Element
 from elements import ElementMux
 from nodes import Node
@@ -41,6 +42,24 @@ def test(func):
             print('FAILED: ' + str(ex))
 
     return test_wrapper
+
+
+@test
+def test_flag_generator():
+    """Test flag generation from states"""
+
+    # Set up
+    flags = [4, 3, 2]
+    states = 4 * 3 * 2
+
+    # Test 1: Instantiation
+    gen = FlagGenerator(*flags)
+    assert gen.states == states, "Flag state calculation failed."
+
+    # Test 2: Basis conversion
+    assert gen.convert_basis(10, 2, 5) == [1, 0, 1], "Decimal to n-ary failed."
+    assert gen.convert_basis(6, 10, (2, 4)) == [1, 6], "N-ary to decimal failed."
+    assert gen.convert_basis(2, 8, (1, 0, 1)) == [5], "N-ary to n-ary failed."
 
 
 @test
@@ -165,6 +184,7 @@ def test_netlist_io():
 
 if __name__ == '__main__':
     print()
+    test_flag_generator()
     test_node_class()
     test_element_class()
     test_element_mux()

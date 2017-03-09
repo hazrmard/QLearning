@@ -28,11 +28,14 @@ class Block:
             block.
 
     Class Attributes:
+        block_regex (str): Regex pattern that matches a block and captures
+            the block definitions inside.
         begin (str): A regex pattern that defines start of block.
         end (str): A regex pattern that defines end of block.
         prefix (str): Element name prefix that defines block instance.
     """
 
+    block_regex = ''
     begin = '.subckt'
     end = '.ends'
     prefix = 'x'
