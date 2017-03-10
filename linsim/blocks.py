@@ -22,9 +22,10 @@ class Block:
 
     Instance Attributes:
         name (str): Name of block.
-        definition (list): List of element definitions strings in block.
+        definition (str)): Newline separated element definitions in block.
             Can contain nested block definitions.
         nodes (list): List of nodes (str/Node).
+        elements (list): List of element instances (Element).
         blocks (dict): block name: Block() dict of nested blocks.
         graph (dict): node (Node): element list dictionary of elements/blocks in
             block.
@@ -52,19 +53,29 @@ class Block:
         self.mux = mux
         self.definition = '\n'.join(definition)
         self.nodes = nodes
+        self.elements = []
         self.blocks = {}
         self.graph = {}
         if len(self.definition):
             self._parse()
 
 
+    def __str__(self):
+        result = ''
+        for block_name, block in self.blocks.items():
+            result += block.definition + '\n'
+        for elem in self.elements:
+            result += str(elem) + '\n'
+        return result
+
+
     def _parse(self):
         """
         Parses self.definition to populate adjacency lists for each node.
         """
-        self._sanitize()
-        trimmed_def = self._parse_blocks(self.definition)
-        self._parse_elements(trimmed_def)
+        self._sanitize()                                # clean whitespace etc.
+        no_block = self._parse_blocks(self.definition)  # extract nested blocks
+        self._parse_elements(no_block)                  # extract elements
 
 
     def _sanitize(self):
@@ -114,7 +125,12 @@ class Block:
         Args:
             definition (str): Block definition with nested blocks defs removed.
         """
-        pass
+        # TODO: Block instances
+        definitions = definition.split('\n')
+        for elem_def in definitions:
+            if self.is_element(elem_def):           # ignore comments/ directives
+                elem = self.mux.mux(elem_def)       # instantiate from mux
+                self.add(elem)
 
 
     def add(self, elem):
@@ -124,7 +140,19 @@ class Block:
         Args:
             elem (Element): An Element instance (or subclass).
         """
-        pass
+        if isinstance(elem, elements.Element):
+            if elem in self.elements:           # check if duplicate
+                raise ValueError('Duplicate element already exists.')
+            else:
+                self.elements.append(elem)      # add elem to elements list
+                for node in set(elem.nodes):    # add elem to adjacency list
+                    if self.graph.get(node):
+                        self.graph[node].append(elem)
+                    else:
+                        self.graph[node] = [elem]
+        else:
+            raise TypeError('elem must be an instance of Element.')
+
 
 
     def remove(self, elem):
@@ -134,10 +162,55 @@ class Block:
         Args:
             elem (Element/str): Element instance / name to be removed.
         """
-        pass
+        if elem in self.elements:
+            self.elements.remove(elem)
+            for node in set(elem.nodes):
+                if self.graph.get(node):
+                    self.graph[node].remove(elem)
+                    if len(self.graph[node]) == 0:
+                        del self.graph[node]
 
 
-    def is_element(self, line):
+
+    def short(self, node1, node2):
+        """
+        Short-circuit node1 and node2, removing any elements between them that
+        exclusively connect to these two nodes.
+
+        Args:
+            node1 (str/Node): The node instance/ name to short. This node must
+                exist in the block.
+            node2 (str/Node): The node instance/ name to short with. This can
+                be a new node. All occurances of node1 will be replaced with
+                node2.
+        """
+        node2 = Node(node2) if isinstance(node2, str) else node2
+        if node1 in self.graph:
+            elements = self.graph[node1]
+            del self.graph[node1]
+            redundant = []
+            for elem in elements:
+                # reassign nodes on elements in shorted node
+                elem.nodes[elem.nodes.index(node1)] = node2
+                # if all nodes are identical, mark element as redundant
+                if elem.nodes.count(node2) == len(elem.nodes):
+                    redundant.append(elem)
+            # After reassignment, merge/create elements into node2's adj list
+            if node2 in self.graph:
+                self.graph[node2] = list(set(self.graph[node2]).union(
+                    set(elements)))
+            else:
+                self.graph[node2] = elements
+            # Remove redundant nodes from merging list and block's element list
+            for elem in redundant:
+                self.graph[node2].remove(elem)
+                self.elements.remove(elem)
+        else:
+            raise ValueError('Node1 does not exist in block: ' + self.name)
+
+
+    @staticmethod
+    def is_element(line):
         """
         Checks whether a line defines a component.
 
@@ -150,7 +223,8 @@ class Block:
         return line[0] != '*' and line[0] != '.'
 
 
-    def is_directive(self, line):
+    @staticmethod
+    def is_directive(line):
         """
         Checks whether a line is a directive.
 

@@ -14,7 +14,6 @@ from system import System
 
 NUM_TESTS = 0
 TESTS_PASSED = 0
-QLEARNER = None
 
 def test(func):
     """
@@ -44,7 +43,7 @@ def test(func):
     return test_wrapper
 
 
-#@test
+@test
 def test_flag_generator():
     """Test flag generation from states"""
 
@@ -163,37 +162,62 @@ def test_block_class():
     """Test block parsing"""
 
     # Set up
-    block1_def = """blah blah
-some more blah"""
-    block1 = """.subckt block1 1 2 n3 n12
-""" + block1_def + """
-.ends block1"""
+    block1_def = ("E1 1 2 45\n"
+                  "E2 2 3 50")
+    block1 = ".subckt block1 1 2 n3 n12\n" \
+             + block1_def + "\n" \
+             + ".ends block1\n"
 
-    block2_def = """blah blah
-some more blah"""
-    block2 = """.subckt block2 1 2 n3 n12
-""" + block2_def + """
-.ends block2"""
+    block2_def = ("e3 4 5 100\n"
+                  "e4 3 4 whatever")
+    block2 = ".subckt block2 1 2 n3 n12\n" \
+                + block2_def + "\n" \
+                ".ends block2\n"
 
-    block_str = block1 + """
-asd
-asd
-""" + block2 + """
-
-asd
-asd
-asd"""
+    block_str = block1 + "\n" \
+        + "e6 2 4 90\n" \
+        + "ELEM45 1 2 64\n" \
+        + block2 + "\n\n" \
+        + "es1 s1 1 10\n" \
+        + "es2 s2 3 10k\n" \
+        + "es3 s2 s1 1M"
     block_defs = block_str.split('\n')
+    elem = Element(definition='EN1 4 new_node 324k')
+    elem_duplicate = Element(definition='E56 2 3 43k')
+
 
     # Test 1: Instantiation
     block = Block('test', ('1', 'n2', 'node3'), block_defs)
 
     # Test 2: Parsing correctness
     assert len(block.blocks) == 2, 'Incorrect number of blocks detected.'
-    assert block.blocks['block1'].name == 'block1', "Nested block name parsing failed."
-    assert block.blocks['block2'].name == 'block2', "Nested block name parsing failed."
-    assert block.blocks['block1'].definition == block1_def, "Nested block def parsing failed."
-    assert block.blocks['block2'].definition == block2_def, "Nested block def parsing failed."
+    assert len(block.elements) == 5, 'Block elements not fully populated.'
+    b1 = block.blocks.get('block1')
+    b2 = block.blocks.get('block2')
+    assert b1, 'Nested block key failure.'
+    assert b2, 'Nested block key failure.'
+    assert b1.name == 'block1', "Nested block name parsing failed."
+    assert b2.name == 'block2', "Nested block name parsing failed."
+    assert b1.definition == block1_def, "Nested block def parsing failed."
+    assert b2.definition == block2_def, "Nested block def parsing failed."
+
+    # Test 3: Block manipulation
+    block.add(elem)
+    assert elem in block.elements, 'Element addition failed.'
+    assert elem in block.graph[elem.nodes[0]], 'Element addition failed.'
+    assert elem in block.graph[elem.nodes[1]], 'Element addition failed.'
+    try:
+        block.add(elem_duplicate)
+    except ValueError:
+        pass
+    block.remove(elem)
+    assert elem not in block.elements, 'Element removal failed.'
+    assert elem not in block.graph[elem.nodes[0]], 'Element removal failed.'
+    assert block.graph.get(elem.nodes[1]) is None, 'Element removal failed.'
+    block.short('s2', 's1')
+    assert 's2' not in block.graph, 'Shorted node not removed from block.'
+    assert 'es3' not in block.elements, 'Shorted elements not removed.'
+    assert len(block.graph['s1']) == 2, 'Incorrect element union after short.'
 
 
 @test

@@ -70,6 +70,13 @@ class Element:
         return self.name + ' ' + nodes + ' ' + str(self.value) + \
                 ' ' + ' '.join([k+'='+v for k, v in self.kwargs.items()])
 
+    def __repr__(self):
+        return self.name
+
+
+    def __hash__(self):
+        return hash(self.name)
+
 
     def __eq__(self, other):
         """
