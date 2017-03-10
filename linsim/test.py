@@ -44,7 +44,7 @@ def test(func):
     return test_wrapper
 
 
-@test
+#@test
 def test_flag_generator():
     """Test flag generation from states"""
 
@@ -60,6 +60,11 @@ def test_flag_generator():
     assert gen.convert_basis(10, 2, 5) == [1, 0, 1], "Decimal to n-ary failed."
     assert gen.convert_basis(6, 10, (2, 4)) == [1, 6], "N-ary to decimal failed."
     assert gen.convert_basis(2, 8, (1, 0, 1)) == [5], "N-ary to n-ary failed."
+    assert gen.convert_basis(10, 2, [1, 0]) == [1, 0, 1, 0], "Decimal to n-ary failed."
+
+    # Test 3: Encoding and decoding
+    assert gen.decode(12) == [2, 0, 0], 'Decoding failed.'
+    assert gen.encode(*gen.decode(12)) == 12, 'Encoding decoding mismatch.'
 
 
 @test
@@ -154,6 +159,44 @@ def test_element_mux():
 
 
 @test
+def test_block_class():
+    """Test block parsing"""
+
+    # Set up
+    block1_def = """blah blah
+some more blah"""
+    block1 = """.subckt block1 1 2 n3 n12
+""" + block1_def + """
+.ends block1"""
+
+    block2_def = """blah blah
+some more blah"""
+    block2 = """.subckt block2 1 2 n3 n12
+""" + block2_def + """
+.ends block2"""
+
+    block_str = block1 + """
+asd
+asd
+""" + block2 + """
+
+asd
+asd
+asd"""
+    block_defs = block_str.split('\n')
+
+    # Test 1: Instantiation
+    block = Block('test', ('1', 'n2', 'node3'), block_defs)
+
+    # Test 2: Parsing correctness
+    assert len(block.blocks) == 2, 'Incorrect number of blocks detected.'
+    assert block.blocks['block1'].name == 'block1', "Nested block name parsing failed."
+    assert block.blocks['block2'].name == 'block2', "Nested block name parsing failed."
+    assert block.blocks['block1'].definition == block1_def, "Nested block def parsing failed."
+    assert block.blocks['block2'].definition == block2_def, "Nested block def parsing failed."
+
+
+@test
 def test_netlist_io():
     """Test Netlist class for reading/parsing"""
 
@@ -188,6 +231,7 @@ if __name__ == '__main__':
     test_node_class()
     test_element_class()
     test_element_mux()
+    test_block_class()
     test_netlist_io()
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))

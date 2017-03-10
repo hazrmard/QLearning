@@ -122,7 +122,7 @@ class Element:
         value_str = ' '.join(split[1+self.num_nodes:])
         #   These subs are to comply with the regex pattern
         #   Remove trailing whitespace on = and separators
-        value_str = re.sub(' = ', '=', value_str)
+        value_str = re.sub(r'\s*=\s*', '=', value_str)
         value_str = re.sub('(?P<sep>[,;-_])\\s+', '\\g<sep>', value_str)
 
         # Isolate single values
