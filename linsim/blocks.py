@@ -10,7 +10,11 @@ from nodes import Node
 class Block:
     """
     Block defines a subcircuit in a netlist comprised of multiple elements. The
-    block is opaque from the outside, only exposing its external nodes.
+    block is opaque from the outside, only exposing its external nodes. Of the
+    form:
+        .subckt <NAME> <NODE1>,..., [<PARAM1=VALUE1>,...]
+        ELEMENT DEFINITIONS...
+        .ends <NAME>
 
     Args:
         name (str): the name of the block.
@@ -25,6 +29,7 @@ class Block:
         definition (str)): Newline separated element definitions in block.
             Can contain nested block definitions.
         nodes (list): List of nodes (str/Node).
+        num_nodes (int): Number of nodes exposed i.e. size of nodes.
         elements (list): List of element instances (Element).
         blocks (dict): block name: Block() dict of nested blocks.
         graph (dict): node (Node): element list dictionary of elements/blocks in
@@ -41,7 +46,7 @@ class Block:
         prefix (str): Element name prefix that defines block instance.
     """
 
-    prefix = 'x'
+    prefix = elements.BlockInstance.prefix
     block_regex = r'\.subckt\s+(?P<name>\w+)(?P<args>.*)' + \
                   r'\n(?P<defs>[\s\S]+?)\n' + \
                   r'\.ends\s+(?P=name)(?:$|\s)'
@@ -51,8 +56,9 @@ class Block:
     def __init__(self, name, nodes, definition=(), mux=elements.DEFAULT_MUX, **kwargs):
         self.name = name
         self.mux = mux
-        self.definition = '\n'.join(definition)
+        self.definition = '\n'.join(definition).lower()
         self.nodes = nodes
+        self.num_nodes = len(nodes)
         self.elements = []
         self.blocks = {}
         self.graph = {}
@@ -82,12 +88,13 @@ class Block:
         """
         Sanitizes self.definition so it can be parsed properly.
         """
-        # removes empty lines
-        self.definition = re.sub(r'\n\s+', r'\n', self.definition)
-        # removes spaces around = signs
-        self.definition = re.sub(r'\s*=\s*', '=', self.definition)
+        # # removes empty lines
+        # self.definition = re.sub(r'\s*\n\s*', r'\n', self.definition)
+        # # removes spaces around = signs
+        # self.definition = re.sub(r'\s*=\s*', '=', self.definition)
         # removes spaces after commas, colons, dashes etc.
-        self.definition = re.sub('(?P<sep>[,;-_])\\s+', '\\g<sep>', self.definition)
+        self.definition = self.definition.strip().lower()
+        self.definition = re.sub(r'\s*(?P<sep>[,;-_=\n])\s*', r'\g<sep>', self.definition)
 
 
     def _parse_blocks(self, definition):
@@ -125,11 +132,19 @@ class Block:
         Args:
             definition (str): Block definition with nested blocks defs removed.
         """
-        # TODO: Block instances
         definitions = definition.split('\n')
         for elem_def in definitions:
-            if self.is_element(elem_def):           # ignore comments/ directives
-                elem = self.mux.mux(elem_def)       # instantiate from mux
+            if self.is_element(elem_def):
+                if self.is_block_instance(elem_def):
+                    block_name = elem_def[elem_def.rfind(' ')+1:]
+                    try:
+                        block = self.blocks[block_name]
+                    except KeyError:
+                        raise KeyError('Block:' + block_name + ' is not defined.')
+                    elem = elements.BlockInstance(block, definition=elem_def,\
+                        num_nodes=block.num_nodes)
+                else:
+                    elem = self.mux.mux(elem_def)   # instantiate from mux
                 self.add(elem)
 
 
@@ -210,28 +225,41 @@ class Block:
 
 
     @staticmethod
-    def is_element(line):
+    def is_element(elem):
         """
         Checks whether a line defines a component.
 
         Args:
-            line (str): A line in the netlist.
+            elem (str/Element): A line in the netlist or an Element instance.
 
         Returns:
             boolean -> True if line is component.
         """
-        return line[0] != '*' and line[0] != '.'
+        return str(elem)[0] != '*' and str(elem)[0] != '.'
 
 
     @staticmethod
-    def is_directive(line):
+    def is_directive(elem):
         """
         Checks whether a line is a directive.
 
         Args:
-            line (str): A line in the netlist.
+            elem (str/Element): A line in the netlist or an Element instance.
 
         Returns:
             boolean -> True if line is directive.
         """
-        return line[0] == '.'
+        return str(elem)[0] == '.'
+
+
+    def is_block_instance(self, elem):
+        """
+        Checks whether a line defines a block instance.
+
+        Args:
+            elem (str/Element): A line in the netlist or an Element instance.
+
+        Returns:
+            boolean -> True if line is a block instance declaration.
+        """
+        return str(elem)[:len(self.__class__.prefix)] == self.__class__.prefix

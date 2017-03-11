@@ -111,6 +111,9 @@ def test_element_class():
     assert hasattr(elem, 'table'), 'Param=Value pair incorrectly parsed.'
     assert elem.param('table') == '(0 0,10 100)', 'Param fetching failed.'
 
+    elem = Element(num_nodes=3, definition=def3)
+    assert elem.nodes == ['n3', 'n2', 'n1'], 'Custom node numbers failed.'
+
     # Test 2: checking argument/keyword parsing for default Element class
     elem = Element('T1', 10, 12, 100, k1=1, K2=2)
     assert str(elem) == 't1 10 12 100 k1=1 k2=2', 'Arg parsing failed.'
@@ -180,7 +183,8 @@ def test_block_class():
         + block2 + "\n\n" \
         + "es1 s1 1 10\n" \
         + "es2 s2 3 10k\n" \
-        + "es3 s2 s1 1M"
+        + "es3 s2 s1 1M\n" \
+        + "x1 1 2 3 4 BLocK1"
     block_defs = block_str.split('\n')
     elem = Element(definition='EN1 4 new_node 324k')
     elem_duplicate = Element(definition='E56 2 3 43k')
@@ -191,15 +195,17 @@ def test_block_class():
 
     # Test 2: Parsing correctness
     assert len(block.blocks) == 2, 'Incorrect number of blocks detected.'
-    assert len(block.elements) == 5, 'Block elements not fully populated.'
+    assert len(block.elements) == 6, 'Block elements not fully populated.'
     b1 = block.blocks.get('block1')
     b2 = block.blocks.get('block2')
+    b1_instance = block.elements[block.elements.index('x1')]
     assert b1, 'Nested block key failure.'
     assert b2, 'Nested block key failure.'
     assert b1.name == 'block1', "Nested block name parsing failed."
     assert b2.name == 'block2', "Nested block name parsing failed."
-    assert b1.definition == block1_def, "Nested block def parsing failed."
-    assert b2.definition == block2_def, "Nested block def parsing failed."
+    assert b1.definition == block1_def.lower(), "Nested block def parsing failed."
+    assert b2.definition == block2_def.lower(), "Nested block def parsing failed."
+    assert b1_instance.block.name == 'block1', "Block instance failed."
 
     # Test 3: Block manipulation
     block.add(elem)

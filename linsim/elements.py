@@ -42,7 +42,7 @@ class Element:
 
     def __init__(self, *args, **kwargs):
         if 'definition' in kwargs:
-            definition = kwargs.get('definition').lower()
+            definition = self._sanitize(kwargs.get('definition'))
             del kwargs['definition']
         else:
             definition = ''
@@ -111,26 +111,59 @@ class Element:
                 self.kwargs[param] = value
 
 
+    def _verify(self, args):
+        """
+        Check args for correct length and prefix etc.
+
+        Args:
+            args (list): A list of string arguments of the form:
+                <PREFIX><ID>, <NODE1>,..., <VALUE1>,..., [<PARAM1>=<VALUE1>]...
+                i.e. the sanitized definition string split on spaces, or at least
+                single value arguments list.
+
+        Raises:
+            ValueError if prefix does not match element type.
+            AttributeError if number of arguments less than expected.
+        """
+        if len(args) < 1 + self.__class__.num_nodes + 1:
+            # At least 1 name + num_nodes + 1 value
+            raise AttributeError('Element definition does not have enough args.')
+        if self.__class__.prefix.lower() != args[0][:len(self.__class__.prefix)]:
+            raise ValueError('Incorrect element type.')
+
+
+    def _sanitize(self, text):
+        """
+        Change text to comply with definition requirements for later processing.
+
+        Args:
+            text (str): A line to sanitize.
+
+        Returns:
+            A string containing the sanitized line.
+        """
+        #   These subs are to comply with the regex pattern
+        #   Remove trailing whitespace on = and separators
+        text = text.strip().lower()
+        # text = re.sub(r'\s*=\s*', '=', text)
+        return re.sub(r'\s*(?P<sep>[,;-_=\n])\s*', r'\g<sep>', text)
+
+
     def _parse_definition(self, definition):
         """
         Parses the definition and assigns attributes to instance accordingly.
+
+        Args:
+            definition (str): A single element's netlist definition.
         """
         split = definition.split()
-        if len(split) < 1 + self.__class__.num_nodes + 1:
-            # At least 1 name + num_nodes + 1 value
-            raise AttributeError('Element definition does not have enough args.')
-        if self.__class__.prefix.lower() != split[0][:len(self.__class__.prefix)]:
-            raise ValueError('Incorrect element type.')
+        self._verify(split)
 
         self.name = split[0]
         self.nodes = [Node(x) for x in split[1:1+self.num_nodes]]
 
         # Construct the remaining value and param=value pair string
         value_str = ' '.join(split[1+self.num_nodes:])
-        #   These subs are to comply with the regex pattern
-        #   Remove trailing whitespace on = and separators
-        value_str = re.sub(r'\s*=\s*', '=', value_str)
-        value_str = re.sub('(?P<sep>[,;-_])\\s+', '\\g<sep>', value_str)
 
         # Isolate single values
         values = re.findall(self.__class__.value_regex, value_str)
@@ -183,11 +216,7 @@ class Element:
         definition string. Positional arguments are stored in self.args.
         Keyword arguments are stored in self.kwargs.
         """
-        if len(self.args) < 1 + self.__class__.num_nodes + 1:
-            # At least 1 name + num_nodes + 1 value
-            raise AttributeError('Element definition does not have enough args.')
-        if self.__class__.prefix.lower() != self.args[0][:len(self.__class__.prefix)]:
-            raise ValueError('Incorrect element type.')
+        self._verify(self.args)
 
         self.name = self.args[0]
         self.nodes = self.args[1:1+self.num_nodes]
@@ -195,6 +224,31 @@ class Element:
         self.kwargs = self._parse_pairs(self.kwargs)
         for key, value in self.kwargs.items():
             setattr(self, key, value)
+
+
+
+class BlockInstance(Element):
+    """
+    BlockInstance represents an instance of a block/subcircuit definition.
+
+    Args:
+        block (Block): Block the element is an instance of.
+
+        definition (str): A netlist definition of the instance. Of the form:
+            <PREFIX><ID> <NODE1>... [<VALUE1>...] [<PARAM1>=<VALUE1>...] <BLOCK>
+            Where <BLOCK> is the name of the block being instantiated.
+            <PREFIX> should be Block.prefix (which is 'x' by default.).
+        OR:
+        *args: Any number of value arguments for the element. Of the form:
+            <PREFIX><ID>, <NODE1>,..., [<VALUE1>,...], <BLOCK>
+    """
+
+    prefix = 'x'
+    name = 'BlockInstance'
+
+    def __init__(self, block, *args, **kwargs):
+        self.block = block
+        super().__init__(*args, **kwargs)
 
 
 
@@ -312,5 +366,7 @@ class ElementMux:
 """
 DEFAULT_MUX includes all elements defined in this module. It is used by default
 by Block class to instantiate element definitions.
+It does not include BlockInstance as it is not an atomic element.
 """
 DEFAULT_MUX = ElementMux()
+DEFAULT_MUX.remove('x')
