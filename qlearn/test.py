@@ -5,6 +5,7 @@ Tests for the qlearn package.
 import os
 import numpy as np
 from qlearner import QLearner
+from testbench import TestBench
 
 NUM_TESTS = 0
 TESTS_PASSED = 0
@@ -132,12 +133,21 @@ def test_online_learning():
     QLEARNER.learn()
 
 
+@test
+def test_testbench():
+    """
+    Testing Qlearner testbench.
+    """
+    t = TestBench(size=10, seed=62)
+    t.show_topology(True)
+
 
 if __name__ == '__main__':
     print()
     test_instantiation()
     test_offline_learning()
     test_online_learning()
+    test_testbench()
 
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))

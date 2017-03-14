@@ -14,7 +14,8 @@ class QLearner:
 
     Args:
         rmatrix (ndarray/str): The reward matrix of [n states x m actions]. OR
-            filepath to space delimited rmatrix file.
+            filepath to space delimited rmatrix file. Element [n, m] in the
+            matrix represents the reward for taking action m from state n.
         goal (list/tuple/set/array/function): Indices of goal states in rmatrix
             OR a function that accepts a state index and returns true if goal.
         tmatrix (ndarray/str): A transition matrix of [n states x m actions], OR

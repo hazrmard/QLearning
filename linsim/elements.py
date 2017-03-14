@@ -48,6 +48,7 @@ class Element:
             definition = ''
         if 'num_nodes' in kwargs:
             self.num_nodes = kwargs.get('num_nodes')
+            del kwargs['num_nodes']
         else:
             self.num_nodes = self.__class__.num_nodes
 
