@@ -138,15 +138,23 @@ def test_testbench():
     """
     Testing Qlearner testbench.
     """
-    t = TestBench(size=10, seed=62)
+    t = TestBench(size=10, seed=400000)
+    t.show_topology(True)
+    t = TestBench(size=10, seed=40000)
+    t.show_topology(True)
+    t = TestBench(size=10, seed=4000)
+    t.show_topology(True)
+    t = TestBench(size=10, seed=400)
+    t.show_topology(True)
+    t = TestBench(size=10, seed=40)
     t.show_topology(True)
 
 
 if __name__ == '__main__':
     print()
-    test_instantiation()
-    test_offline_learning()
-    test_online_learning()
+    # test_instantiation()
+    # test_offline_learning()
+    # test_online_learning()
     test_testbench()
 
     print('\n==========\n')
