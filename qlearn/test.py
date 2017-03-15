@@ -138,23 +138,26 @@ def test_testbench():
     """
     Testing Qlearner testbench.
     """
-    t = TestBench(size=10, seed=400000)
-    t.show_topology(True)
-    t = TestBench(size=10, seed=40000)
-    t.show_topology(True)
-    t = TestBench(size=10, seed=4000)
-    t.show_topology(True)
-    t = TestBench(size=10, seed=400)
-    t.show_topology(True)
-    t = TestBench(size=10, seed=40)
-    t.show_topology(True)
+    # set up
+    size = 10
+
+    # Test 1: Instantiation
+    t = TestBench(size=10, seed=400000, mode=QLearner.OFFLINE)
+
+    # Test 2: Qlearner compatibility
+    t.qlearner.learn()
+    assert t.qlearner.qmatrix.size == size * size * len(t.actions), \
+        'Qlearner matrix size mismatch.'
+
+    # Test 3: Visualization
+    t.episode(start=(8, 8))
 
 
 if __name__ == '__main__':
     print()
-    # test_instantiation()
-    # test_offline_learning()
-    # test_online_learning()
+    test_instantiation()
+    test_offline_learning()
+    test_online_learning()
     test_testbench()
 
     print('\n==========\n')

@@ -27,6 +27,13 @@ class QLearner:
         policy (int): One of QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default
             UNIFORM.
         mode (int): One of QLearner.[OFFLINE | ONLINE]. Default OFFLINE.
+
+    Instance Attributes:
+        _policy (func): a function reference to self.[_uniform | _greedy |
+            _softmax]_policy
+        mode/policy/lrate/discount/rmatrix/tmatrix/goal: Same as args.
+        _action_param: A dict of helper values for GREEDY | SOFTMAX calcs.
+        next_state (func): Returns next state given current state, action.
     """
 
     UNIFORM = 0
@@ -36,15 +43,10 @@ class QLearner:
     OFFLINE = 0
     ONLINE = 1
 
-    def __init__(self, rmatrix, goal, tmatrix=None, lrate=1, discount=1, policy=0,
-                 mode=0, **kwargs):
+    def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
+                 policy=0, mode=0, **kwargs):
         """
-        Attributes:
-            _policy (func): a function reference to self.[_unifotm | _greedy |
-                _softmax]_policy
-            mode/policy/lrate/discount/rmatrix/tmatrix/goal: Same as args.
-            _action_param: A dict of helper values for GREEDY | SOFTMAX calcs.
-            next_state (func): Returns next state given current state, action.
+        
         """
         self.set_reward_matrix(rmatrix)
         self.set_transition_matrix(tmatrix)

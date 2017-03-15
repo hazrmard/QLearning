@@ -17,15 +17,21 @@ class TestBench:
     Qlearner class graphically for illustration. It generates a geographical
     system - a square grid where each point has a height. The goal states are
     coordinates with lower heights. Possible actions/transitions are movements
-    to adjacent points. There are two state variables: x and y coords.
-    It visualizes the path a QLearner would take after learning from the reward
-    matrix generated for that topology.
+    to adjacent points. There are two state variables: x and y coords. Each
+    instance automatically generates transition and reward matrices that can
+    be used by a QLearner instance.
 
     Args:
-        size (int): The size of each side of the topology.
+        size (int): The size of each side of the topology (size * size points).
         seed (int): The seed for the random number generator.
         method (str): Method for generating topology. Default='fault'.
         goals (int): Number of goal states. Default = size.
+        qlearner (QLearner): QLearner instance which has called learn(). Defaults
+            to None in which case a Qlearner instance with default arguments is
+            generated with any extra keyword arguments passed on.
+        **kwargs: A sequence of keyword arguments to instantiate the qlearner
+            if one is not provided. Any keywords except tmatrix, rmatrix, and
+            goals which are provided by the TestBench.
 
     Instance Attributes:
         topology (2D ndarray): A square array of heights defining the system.
@@ -35,12 +41,14 @@ class TestBench:
         states (int): Number of possible states/positions in the system.
         actions (2D ndarray): An array where each row defines an action by a
             change in topology coordinates. For e.g. [1,0] is move-up.
-        path (list): Sequence of coordinates [y, x] taken on topology to reach
-            goal state.
+        path (list): Sequence of coordinates (y, x) tuples taken on topology to
+            reach goal state.
         tmatrix (2D ndarray): The transition matrix.
         rmatrix (2D ndarray): The reward matrix.
         goals (list): List of goal state numbers (coords encoded into int).
         num_goals (int): Number of goal states.
+        qlearner (QLearner): QLearner instance. The learn() function must be
+            called before visualizing the learned policy function.
         fig (plt.figure): A matplotlib figure instance storing all plots.
         topo_ax (Axes3D): An axis object storing the 3D plots.
         topo_surface (Poly3DCollection): Contains plotted surface.
@@ -49,7 +57,8 @@ class TestBench:
 
     plot_num = 0
 
-    def __init__(self, size=10, seed=0, method='fault', goals=-1):
+    def __init__(self, size=10, seed=0, method='fault', goals=-1, qlearner=None,
+                 **kwargs):
         np.random.seed(seed)
         # qlearning params
         self.topology = np.zeros((size, size))
@@ -61,6 +70,7 @@ class TestBench:
         self.rmatrix = np.array([])
         self.goals = []
         self.num_goals = size if goals < 0 else goals
+        self.qlearner = qlearner
 
         # plotting variables
         self.fig_num = self.__class__.plot_num
@@ -72,6 +82,46 @@ class TestBench:
 
         self.create_topology(method)
         self.generate_trg()
+        if self.qlearner is None:
+            self.qlearner = QLearner(self.rmatrix, self.goals, self.tmatrix, \
+                            **kwargs)
+
+
+    def episode(self, start=None, interactive=False, show=True, limit=-1):
+        """
+        Run a single episode from the provided qlearner. The episode starts at
+        coordinates 'start' and ends when it reaches a goal state. Calls the
+        self.qlearner.recommend() function to get sequence of actions to take
+        based on the learned Q-Matrix.
+
+        Args:
+            start (list/tuple/ndarray): y and x coordinates to start from. If
+                None, generates random coordinates.
+            interactive (bool): If true, prompts after each step, otherwise
+                draws the entire path at once.
+            show (bool): If true, shows a figure with the topology etc. Else,
+                proceeds silently while storing state history (as coords) in
+                self.path.
+            limit (int): Maximum number of steps in episode before quitting.
+                Defaults to self.size*self.size. Only applies with interactve=
+                False.
+        """
+        if start is None:
+            start = (np.random.randint(self.size), np.random.randint(self.size))
+        self.path.append(tuple(start))
+        limit = self.size**2 if limit <= 0 else limit
+        current = self.coord2state(start)
+        if interactive:
+            pass
+        else:
+            iteration = 0
+            while current not in self.goals and iteration < limit:
+                iteration += 1
+                action = self.qlearner.recommend(current)
+                current = self.tmatrix[current, action]
+                self.path.append(self.state2coord(current))
+            if show:
+                self.show_topology(True)
 
 
     def create_topology(self, method='fault'):
@@ -89,7 +139,8 @@ class TestBench:
 
     def show_topology(self, block=False):
         """
-        Draws a surface plot of the topology.
+        Draws a surface plot of the topology, marks goal states, and any episode
+        up to its current progress.
 
         Args:
             block (bool): If true, halts execution of following statements as
@@ -106,10 +157,16 @@ class TestBench:
         gx = [g[1] for g in gc]
         gy = [g[0] for g in gc]
         self.topo_ax.scatter(gx, gy, gz)
+        # Plot path
+        px = [p[1] for p in self.path]
+        py = [p[0] for p in self.path]
+        pz = [self.topology[p[0], p[1]] for p in self.path]
+        self.path_line = self.topo_ax.plot(px, py, pz)
         # Display figure
         plt.show(block=block)
-        self.fig.clear()
-        plt.close(self.fig_num)
+        if block:
+            self.fig.clear()
+            plt.close(self.fig_num)
 
 
 
@@ -141,7 +198,7 @@ class TestBench:
         i.e going right from the right-most coordinate takes to the left-most
         coordinate.
         """
-        tmatrix = np.zeros((self.states, len(self.actions)))
+        tmatrix = np.zeros((self.states, len(self.actions)), dtype=int)
         rmatrix = np.zeros((self.states, len(self.actions)))
         # updating goal states
         goal_state = np.argsort(np.ravel(self.topology))[:self.num_goals]
@@ -173,7 +230,7 @@ class TestBench:
         Returns:
             An integer representing coordinates.
         """
-        return self.size * coord[0] + coord[1]
+        return int(self.size * coord[0] + coord[1])
 
 
     def state2coord(self, state):
@@ -185,6 +242,6 @@ class TestBench:
             state (int): An integer representing a state.
 
         Returns:
-            A 2 element ndarray of [row, column] coordinates.
+            A 2 element tuple of [row, column] coordinates.
         """
-        return np.array((int(state/self.size) % self.size, state % self.size))
+        return (int(state/self.size) % self.size, state % self.size)
