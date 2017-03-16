@@ -45,9 +45,6 @@ class QLearner:
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
                  policy=0, mode=0, **kwargs):
-        """
-        
-        """
         self.set_reward_matrix(rmatrix)
         self.set_transition_matrix(tmatrix)
         self.qmatrix = np.zeros_like(self.rmatrix)

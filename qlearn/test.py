@@ -150,7 +150,9 @@ def test_testbench():
         'Qlearner matrix size mismatch.'
 
     # Test 3: Visualization
-    t.episode(start=(8, 8))
+    res = t.episode(start=(8, 8), interactive=False)
+    assert len(res) > 0, 'Episode path not computed.'
+    t.episode(start=(6, 3), interactive=True)
 
 
 if __name__ == '__main__':

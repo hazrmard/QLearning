@@ -42,7 +42,7 @@ class TestBench:
         actions (2D ndarray): An array where each row defines an action by a
             change in topology coordinates. For e.g. [1,0] is move-up.
         path (list): Sequence of coordinates (y, x) tuples taken on topology to
-            reach goal state.
+            reach goal state. Populated by episode() function.
         tmatrix (2D ndarray): The transition matrix.
         rmatrix (2D ndarray): The reward matrix.
         goals (list): List of goal state numbers (coords encoded into int).
@@ -55,7 +55,7 @@ class TestBench:
         path_line (Line3D): Stores the path taken on topology after learning.
     """
 
-    plot_num = 0
+    plot_num = -1
 
     def __init__(self, size=10, seed=0, method='fault', goals=-1, qlearner=None,
                  **kwargs):
@@ -73,10 +73,10 @@ class TestBench:
         self.qlearner = qlearner
 
         # plotting variables
-        self.fig_num = self.__class__.plot_num
-        self.fig = plt.figure(self.fig_num)
         self.__class__.plot_num += 1
-        self.topo_ax = self.fig.add_subplot(111, projection='3d')
+        self.fig_num = self.__class__.plot_num
+        self.fig = None
+        self.topo_ax = None
         self.topo_surface = None
         self.path_line = None
 
@@ -87,7 +87,7 @@ class TestBench:
                             **kwargs)
 
 
-    def episode(self, start=None, interactive=False, show=True, limit=-1):
+    def episode(self, start=None, interactive=True, limit=-1):
         """
         Run a single episode from the provided qlearner. The episode starts at
         coordinates 'start' and ends when it reaches a goal state. Calls the
@@ -96,32 +96,32 @@ class TestBench:
 
         Args:
             start (list/tuple/ndarray): y and x coordinates to start from. If
-                None, generates random coordinates.
-            interactive (bool): If true, prompts after each step, otherwise
-                draws the entire path at once.
-            show (bool): If true, shows a figure with the topology etc. Else,
-                proceeds silently while storing state history (as coords) in
-                self.path.
+                None, generates random coordinates. Of the form (y, x).
+            interactive (bool): If true, shows the plot. Else returns a list
+                of coordinates (y,x) traversed on path.
             limit (int): Maximum number of steps in episode before quitting.
                 Defaults to self.size*self.size. Only applies with interactve=
                 False.
+
+        Return:
+            A list of coordinates stored in self.path that were traversed to
+            reach the goal state. Only when interactive=False.
         """
         if start is None:
             start = (np.random.randint(self.size), np.random.randint(self.size))
-        self.path.append(tuple(start))
+        self.path = [tuple(start)]
         limit = self.size**2 if limit <= 0 else limit
         current = self.coord2state(start)
+        iteration = 0
+        while current not in self.goals and iteration < limit:
+            iteration += 1
+            action = self.qlearner.recommend(current)
+            current = self.tmatrix[current, action]
+            self.path.append(self.state2coord(current))
         if interactive:
-            pass
+            self.show_topology(block=True)
         else:
-            iteration = 0
-            while current not in self.goals and iteration < limit:
-                iteration += 1
-                action = self.qlearner.recommend(current)
-                current = self.tmatrix[current, action]
-                self.path.append(self.state2coord(current))
-            if show:
-                self.show_topology(True)
+            return self.path
 
 
     def create_topology(self, method='fault'):
@@ -137,7 +137,7 @@ class TestBench:
             self._fault_algorithm(int(np.random.rand() * 200))
 
 
-    def show_topology(self, block=False):
+    def show_topology(self, block=True):
         """
         Draws a surface plot of the topology, marks goal states, and any episode
         up to its current progress.
@@ -146,6 +146,8 @@ class TestBench:
             block (bool): If true, halts execution of following statements as
                 long as the plot is open.
         """
+        self.fig = plt.figure(self.fig_num)
+        self.topo_ax = self.fig.add_subplot(111, projection='3d')
         # Plot 3d topology surface
         x, y = np.meshgrid(np.linspace(0, self.size-1, self.size),\
                             np.linspace(0, self.size-1, self.size))
@@ -161,13 +163,19 @@ class TestBench:
         px = [p[1] for p in self.path]
         py = [p[0] for p in self.path]
         pz = [self.topology[p[0], p[1]] for p in self.path]
-        self.path_line = self.topo_ax.plot(px, py, pz)
+        self.path_line = self.topo_ax.plot(px, py, pz)[0]
+        # Set labels
+        self.topo_ax.set_xlabel('X')
+        self.topo_ax.set_ylabel('Y')
+        self.topo_ax.set_zlabel('Altitude')
         # Display figure
-        plt.show(block=block)
         if block:
+            plt.show(block=True)
             self.fig.clear()
             plt.close(self.fig_num)
-
+        else:
+            # self.fig.canvas.draw_idle()
+            pass
 
 
     def _fault_algorithm(self, iterations):
