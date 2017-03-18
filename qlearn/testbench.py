@@ -8,6 +8,8 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from qlearner import QLearner
+from tb_utils import abs_cartesian
+from tb_utils import fault_algorithm
 
 
 
@@ -26,6 +28,7 @@ class TestBench:
         seed (int): The seed for the random number generator.
         method (str): Method for generating topology. Default='fault'.
         goals (int): Number of goal states. Default = size.
+        wrap (bool): Whether or not the topology wraps at edges. Default=False.
         qlearner (QLearner): QLearner instance which has called learn(). Defaults
             to None in which case a Qlearner instance with default arguments is
             generated with any extra keyword arguments passed on.
@@ -52,13 +55,15 @@ class TestBench:
         fig (plt.figure): A matplotlib figure instance storing all plots.
         topo_ax (Axes3D): An axis object storing the 3D plots.
         topo_surface (Poly3DCollection): Contains plotted surface.
-        path_line (Line3D): Stores the path taken on topology after learning.
+        path_line (list): Stores a list of lists of all Line3D segments plotted
+            on the figure. Populated after show_topology(). path_line[0] will
+            be a list of Line3D instances representing the first line and so on.
     """
 
     plot_num = -1
 
-    def __init__(self, size=10, seed=0, method='fault', goals=-1, qlearner=None,
-                 **kwargs):
+    def __init__(self, size=10, seed=0, method='fault', goals=-1, wrap=False,
+                 qlearner=None, **kwargs):
         np.random.seed(seed)
         # qlearning params
         self.topology = np.zeros((size, size))
@@ -81,7 +86,7 @@ class TestBench:
         self.path_line = None
 
         self.create_topology(method)
-        self.generate_trg()
+        self.generate_trg(wrap)
         if self.qlearner is None:
             self.qlearner = QLearner(self.rmatrix, self.goals, self.tmatrix, \
                             **kwargs)
@@ -100,8 +105,7 @@ class TestBench:
             interactive (bool): If true, shows the plot. Else returns a list
                 of coordinates (y,x) traversed on path.
             limit (int): Maximum number of steps in episode before quitting.
-                Defaults to self.size*self.size. Only applies with interactve=
-                False.
+                Defaults to self.size*self.size.
 
         Return:
             A list of coordinates stored in self.path that were traversed to
@@ -119,35 +123,86 @@ class TestBench:
             current = self.tmatrix[current, action]
             self.path.append(self.state2coord(current))
         if interactive:
-            self.show_topology(block=True)
+            self.show_topology(QPath=self.path)
         else:
             return self.path
 
 
-    def create_topology(self, method='fault'):
+    def shortest_path(self, point, metric=abs_cartesian):
         """
-        Creates a square height map based on one of several terrain generation
-        algorithms. The topology is stored in self.topology (2D ndarray), where
-        self.topology[y, x] = height at coordinate (x, y).
+        Returns the shortest path between the point and any of the goal states
+        where the distance between two adjacent states/points is determined by
+        the metric. Uses Dijkstra's algorithm.
 
         Args:
-            method (str): The algorithm to use. Default='fault'.
+            point (tuple/list/ndarray): (y, x) coordinates of point.
+            metric (func): A function that calculates the measure of distance
+                between two points on the topology. Signature is:
+                    func(topology, source, target)
+                Where topology is self.topology, source is the source point,
+                and target is the point to which the distance is measured.
+                All points are (y, x) coordinates. Returns a positive float.
+
+        Returns:
+            A list containing the optimal path from the point to one of the
+            goal states. The list contains points on the topology (y, x)
+            traversed.
         """
-        if method == 'fault':
-            self._fault_algorithm(int(np.random.rand() * 200))
+        # Set up initial distances, visited status, and target states.
+        # All states intially loop back to themselves.
+        distances = np.array([(i, np.inf) for i in range(self.states)])
+        distances[self.coord2state(point)][1] = 0
+        predecessors = np.arange(self.states)
+        unvisited = np.ones(self.states, dtype=bool)
+        goals_left = set(self.goals)
+        states_left = set(range(self.states))
+
+        # Explore closest state from source as long as there are targets/states left
+        while len(goals_left) and len(states_left):
+            closest = int(distances[unvisited][np.argmin(distances[unvisited], axis=0)[1]][0])
+            states_left.remove(closest)
+            if closest in goals_left:
+                goals_left.remove(closest)
+
+            neighbours = [n for n in self.tmatrix[closest, :] if unvisited[n]]
+            for n in neighbours:
+                distance = metric(self.topology, self.state2coord(closest),\
+                                self.state2coord(n))
+                if distance < distances[n, 1]:
+                    distances[n, 1] = distances[closest, 1] + distance
+                    predecessors[n] = closest
+            unvisited[closest] = False
+
+        # Find closest goal state and trace path back to source
+        goal_distances = distances[self.goals, 1]
+        closest_goal = self.goals[np.argmin(goal_distances)]
+        path = [self.state2coord(closest_goal)]
+        state = closest_goal
+        prev = predecessors[state]
+        while prev != state:
+            path.insert(0, self.state2coord(prev))
+            state = prev
+            prev = predecessors[state]
+        # Check if last element in path is goal state
+        if path[-1] != self.state2coord(closest_goal):
+            raise ValueError('Shortest path could not be found.')
+        return path
 
 
-    def show_topology(self, block=True):
+    def show_topology(self, **paths):
         """
         Draws a surface plot of the topology, marks goal states, and any episode
         up to its current progress.
 
         Args:
-            block (bool): If true, halts execution of following statements as
-                long as the plot is open.
+            **paths: A sequence of keyword arguments describing paths to plot
+                on the topology. They should be of the form:
+                <PATH_NAME>=[LIST OF (y, x) COORDINATE PAIRS]
         """
         self.fig = plt.figure(self.fig_num)
         self.topo_ax = self.fig.add_subplot(111, projection='3d')
+        self.path_line = []
+        self.topo_ax.invert_yaxis()
         # Plot 3d topology surface
         x, y = np.meshgrid(np.linspace(0, self.size-1, self.size),\
                             np.linspace(0, self.size-1, self.size))
@@ -160,44 +215,46 @@ class TestBench:
         gy = [g[0] for g in gc]
         self.topo_ax.scatter(gx, gy, gz)
         # Plot path
-        px = [p[1] for p in self.path]
-        py = [p[0] for p in self.path]
-        pz = [self.topology[p[0], p[1]] for p in self.path]
-        self.path_line = self.topo_ax.plot(px, py, pz)[0]
+        for path, coords in paths.items():
+            px = [p[1] for p in coords]
+            py = [p[0] for p in coords]
+            pz = [self.topology[p[0], p[1]] for p in coords]
+            self.path_line.append(self.topo_ax.plot(px, py, pz, label=path))
         # Set labels
         self.topo_ax.set_xlabel('X')
         self.topo_ax.set_ylabel('Y')
         self.topo_ax.set_zlabel('Altitude')
+        plt.legend()
         # Display figure
-        if block:
-            plt.show(block=True)
-            self.fig.clear()
-            plt.close(self.fig_num)
-        else:
-            # self.fig.canvas.draw_idle()
-            pass
+        plt.show(block=True)
+        self.fig.clear()
+        plt.close(self.fig_num)
 
 
-    def _fault_algorithm(self, iterations):
+    def create_topology(self, method='fault', *args, **kwargs):
         """
-        The Fault Algorithm generates a terrain by drawing a line of a random
-        gradient through the grid, and be elevating points on one side, and
-        lowering points on the other side for some number of iterations.
+        Creates a square height map based on one of several terrain generation
+        algorithms. The topology is stored in self.topology (2D ndarray), where
+        self.topology[y, x] = height at coordinate (x, y).
+
+        Args:
+            method (str/func): The algorithm to use. Default='fault'. OR it can
+                also be a function object. The function must populate self.topolgy
+                with values of heights at (y, x) coordinates. The function must
+                take this TestBench instance as its first argument. Signature
+                like:
+                    function(self, *args, **kwargs)
+            *args: Positional arguments passed on to method if it is a function.
+            **kwargs: Keyword arguments passed on to method if it is a function.
         """
-        angle = np.random.rand(iterations) * 2 * np.pi
-        a = np.sin(angle)
-        b = np.cos(angle)
-        disp = (np.random.rand() / iterations) * (np.arange(iterations)[::-1] + 1)
-        for i in range(iterations):
-            cx, cy = np.random.rand(2) * self.size
-            for x in range(self.size):
-                for y in range(self.size):
-                    self.topology[y, x] += disp[i] \
-                                            if -a[i]*(x-cx) + b[i]*(y-cy) > 0 \
-                                            else -disp[i]
+        if callable(method):
+            method(self, *args, **kwargs)
+        elif method == 'fault':
+            self.topology = fault_algorithm(int(np.random.rand() * 200),\
+                            (self.size, self.size))
 
 
-    def generate_trg(self):
+    def generate_trg(self, wrap=False):
         """
         Calculates goal states and creates transition & reward matrices. Where
         tmatrix[state, action] points to index of next state. And
@@ -205,6 +262,10 @@ class TestBench:
         he encoded state number from coords2state. The transitions roll over:
         i.e going right from the right-most coordinate takes to the left-most
         coordinate.
+
+        Args:
+            wrap (bool): Whether or not the topology wraps around boundaries.
+                Default = False.
         """
         tmatrix = np.zeros((self.states, len(self.actions)), dtype=int)
         rmatrix = np.zeros((self.states, len(self.actions)))
@@ -216,8 +277,12 @@ class TestBench:
             # updating r and t matrices
             for j, action in enumerate(self.actions):
                 next_coord = coords + action
-                next_coord[next_coord < 0] += self.size
-                next_coord[next_coord >= self.size] -= self.size
+                if wrap:
+                    next_coord[next_coord < 0] += self.size
+                    next_coord[next_coord >= self.size] -= self.size
+                else:
+                    next_coord[next_coord < 0] = 0
+                    next_coord[next_coord >= self.size] = self.size - 1
                 tmatrix[i, j] = self.coord2state(next_coord)
 
                 rmatrix[i, j] = self.topology[coords[0], coords[1]] \

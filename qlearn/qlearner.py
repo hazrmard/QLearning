@@ -34,6 +34,7 @@ class QLearner:
         mode/policy/lrate/discount/rmatrix/tmatrix/goal: Same as args.
         _action_param: A dict of helper values for GREEDY | SOFTMAX calcs.
         next_state (func): Returns next state given current state, action.
+            Takes state, action indices as arguments.
     """
 
     UNIFORM = 0

@@ -142,16 +142,23 @@ def test_testbench():
     size = 10
 
     # Test 1: Instantiation
-    t = TestBench(size=10, seed=400000, mode=QLearner.OFFLINE)
+    t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=True)
+    t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False)
+    assert t.qlearner.mode == QLearner.OFFLINE, 'Args not passed on to QLearner.'
 
     # Test 2: Qlearner compatibility
     t.qlearner.learn()
     assert t.qlearner.qmatrix.size == size * size * len(t.actions), \
         'Qlearner matrix size mismatch.'
 
-    # Test 3: Visualization
+    # Test 3: Pathfinding
     res = t.episode(start=(8, 8), interactive=False)
     assert len(res) > 0, 'Episode path not computed.'
+    res = t.shortest_path(point=(8, 8))
+    assert len(res) > 0 and res[0] == (8, 8), 'Shortest path not computed.'
+
+    # Test 4: Visualization
+    t.show_topology(QPath=t.path, Greedy=res)
     t.episode(start=(6, 3), interactive=True)
 
 
