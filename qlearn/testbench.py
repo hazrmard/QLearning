@@ -27,7 +27,8 @@ class TestBench:
         size (int): The size of each side of the topology (size * size points).
         seed (int): The seed for the random number generator.
         method (str): Method for generating topology. Default='fault'.
-        goals (int): Number of goal states. Default = size.
+        goals (int/list): Number of goal states. Default = size. If list, then
+            (y, x) coordinates of goal states in topology.
         wrap (bool): Whether or not the topology wraps at edges. Default=False.
         qlearner (QLearner): QLearner instance which has called learn(). Defaults
             to None in which case a Qlearner instance with default arguments is
@@ -62,7 +63,7 @@ class TestBench:
 
     plot_num = -1
 
-    def __init__(self, size=10, seed=0, method='fault', goals=-1, wrap=False,
+    def __init__(self, size=10, seed=0, method='fault', goals=None, wrap=False,
                  qlearner=None, **kwargs):
         np.random.seed(seed)
         # qlearning params
@@ -73,8 +74,16 @@ class TestBench:
         self.path = []
         self.tmatrix = np.array([])
         self.rmatrix = np.array([])
-        self.goals = []
-        self.num_goals = size if goals < 0 else goals
+        if isinstance(goals, (int, float)):
+            self.goals = []
+            self.num_goals = abs(int(goals))
+        elif isinstance(goals, (list, tuple, np.ndarray)):
+            goals = [self.coord2state(g) for g in goals]
+            self.goals = [g for g in goals if g >= 0 and g < self.states]
+            self.num_goals = len(self.goals)
+        else:
+            self.goals = []
+            self.num_goals = self.size
         self.qlearner = qlearner
 
         # plotting variables
@@ -155,12 +164,11 @@ class TestBench:
         predecessors = np.arange(self.states)
         unvisited = np.ones(self.states, dtype=bool)
         goals_left = set(self.goals)
-        states_left = set(range(self.states))
 
         # Explore closest state from source as long as there are targets/states left
-        while len(goals_left) and len(states_left):
+        while len(goals_left):
             closest = int(distances[unvisited][np.argmin(distances[unvisited], axis=0)[1]][0])
-            states_left.remove(closest)
+            unvisited[closest] = False
             if closest in goals_left:
                 goals_left.remove(closest)
 
@@ -171,7 +179,6 @@ class TestBench:
                 if distance < distances[n, 1]:
                     distances[n, 1] = distances[closest, 1] + distance
                     predecessors[n] = closest
-            unvisited[closest] = False
 
         # Find closest goal state and trace path back to source
         goal_distances = distances[self.goals, 1]
@@ -186,6 +193,8 @@ class TestBench:
         # Check if last element in path is goal state
         if path[-1] != self.state2coord(closest_goal):
             raise ValueError('Shortest path could not be found.')
+        elif path[0] != tuple(point):
+            raise ValueError('Could not trace goal to starting point.')
         return path
 
 
@@ -224,7 +233,8 @@ class TestBench:
         self.topo_ax.set_xlabel('X')
         self.topo_ax.set_ylabel('Y')
         self.topo_ax.set_zlabel('Altitude')
-        plt.legend()
+        if len(paths) > 0:
+            plt.legend()
         # Display figure
         plt.show(block=True)
         self.fig.clear()
@@ -289,7 +299,8 @@ class TestBench:
                                 - self.topology[next_coord[0], next_coord[1]]
         self.tmatrix = tmatrix
         self.rmatrix = rmatrix
-        self.goals = goal_state
+        if len(self.goals) == 0:
+            self.goals = goal_state
 
 
     def coord2state(self, coord):

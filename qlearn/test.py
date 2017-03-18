@@ -142,9 +142,11 @@ def test_testbench():
     size = 10
 
     # Test 1: Instantiation
-    t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=True)
+    t = TestBench(size=size, seed=400000, mode=QLearner.ONLINE, wrap=True)
+    assert t.qlearner.mode == QLearner.ONLINE, 'Args not passed on to QLearner.'
+    t = TestBench(size=size, goals=[(1, 1), (2, 2), (2*size, size)])
+    assert t.num_goals == 2, 'Goal states incorrectly processed.'
     t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False)
-    assert t.qlearner.mode == QLearner.OFFLINE, 'Args not passed on to QLearner.'
 
     # Test 2: Qlearner compatibility
     t.qlearner.learn()
