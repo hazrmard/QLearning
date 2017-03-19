@@ -82,6 +82,8 @@ class QLearner:
 
         elif policy == QLearner.SOFTMAX:
             self._policy = self._softmax_policy
+            self.qmatrix += 1   # To ensure non-zero initial Q-values for
+                                # softmax selection to work properly.
 
         else:
             raise ValueError('Policy does not exist.')
