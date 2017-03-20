@@ -7,9 +7,14 @@ get to the lowest altitude possible.
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-from qlearner import QLearner
-from tb_utils import abs_cartesian
-from tb_utils import fault_algorithm
+try:
+    from . import QLearner
+    from .tb_utils import abs_cartesian
+    from .tb_utils import fault_algorithm
+except ImportError:
+    from qlearner import QLearner
+    from tb_utils import abs_cartesian
+    from tb_utils import fault_algorithm
 
 
 
@@ -38,6 +43,8 @@ class TestBench:
             goals which are provided by the TestBench.
 
     Instance Attributes:
+        random (np.random.RandomState): A random number generator local to each
+            instance of TestBench.
         topology (2D ndarray): A square array of heights defining the system.
             Heights are stored as [y, x] coordinates in line with the array
             indexing convention.
@@ -65,7 +72,7 @@ class TestBench:
 
     def __init__(self, size=10, seed=0, method='fault', goals=None, wrap=False,
                  qlearner=None, **kwargs):
-        np.random.seed(seed)
+        self.random = np.random.RandomState(seed)
         # qlearning params
         self.topology = np.zeros((size, size))
         self.size = size
@@ -98,7 +105,7 @@ class TestBench:
         self.generate_trg(wrap)
         if self.qlearner is None:
             self.qlearner = QLearner(self.rmatrix, self.goals, self.tmatrix, \
-                            **kwargs)
+                            seed=seed, **kwargs)
 
 
     def episode(self, start=None, interactive=True, limit=-1):
@@ -118,10 +125,11 @@ class TestBench:
 
         Return:
             A list of coordinates stored in self.path that were traversed to
-            reach the goal state. Only when interactive=False.
+            reach the goal state. Only when interactive=False. The list is a
+            reference to self.path.
         """
         if start is None:
-            start = (np.random.randint(self.size), np.random.randint(self.size))
+            start = (self.random.randint(self.size), self.random.randint(self.size))
         self.path = [tuple(start)]
         limit = self.size**2 if limit <= 0 else limit
         current = self.coord2state(start)
@@ -249,19 +257,18 @@ class TestBench:
 
         Args:
             method (str/func): The algorithm to use. Default='fault'. OR it can
-                also be a function object. The function must populate self.topolgy
-                with values of heights at (y, x) coordinates. The function must
-                take this TestBench instance as its first argument. Signature
-                like:
+                also be a function object. The function must return a ndarray
+                consistent with the topology size given to TestBench at
+                instantiation. Signature like:
                     function(self, *args, **kwargs)
             *args: Positional arguments passed on to method if it is a function.
             **kwargs: Keyword arguments passed on to method if it is a function.
         """
         if callable(method):
-            method(self, *args, **kwargs)
+            self.topology = method(*args, **kwargs)
         elif method == 'fault':
-            self.topology = fault_algorithm(int(np.random.rand() * 200),\
-                            (self.size, self.size))
+            self.topology = fault_algorithm(int(self.random.rand() * 200),\
+                            (self.size, self.size), self.random)
 
 
     def generate_trg(self, wrap=False):

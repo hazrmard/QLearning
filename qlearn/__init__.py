@@ -1,1 +1,2 @@
-from qlearner import QLearner
+from .qlearner import QLearner
+from .testbench import TestBench

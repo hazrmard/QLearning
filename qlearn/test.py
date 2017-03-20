@@ -146,22 +146,35 @@ def test_testbench():
     assert t.qlearner.mode == QLearner.ONLINE, 'Args not passed on to QLearner.'
     t = TestBench(size=size, goals=[(1, 1), (2, 2), (2*size, size)])
     assert t.num_goals == 2, 'Goal states incorrectly processed.'
-    t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False)
+    t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False,\
+                    policy=QLearner.SOFTMAX)
+    t2 = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False,\
+                    policy=QLearner.SOFTMAX)
 
     # Test 2: Qlearner compatibility
     t.qlearner.learn()
+    t2.qlearner.learn()
+    assert np.array_equal(t.topology, t2.topology), \
+        'Identically seeded topologies not equal.'
+    assert np.array_equal(t.qlearner.tmatrix, t2.qlearner.tmatrix), \
+        'Identically seeded tmatrices not equal.'
+    assert np.array_equal(t.qlearner.rmatrix, t2.qlearner.rmatrix), \
+        'Identically seeded rmatrices not equal.'
+    assert np.array_equal(t.qlearner.qmatrix, t2.qlearner.qmatrix), \
+        'Identically seeded qmatrices not equal.'
     assert t.qlearner.qmatrix.size == size * size * len(t.actions), \
         'Qlearner matrix size mismatch.'
 
     # Test 3: Pathfinding
     res = t.episode(start=(8, 8), interactive=False)
+    assert res == t.path, 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'
     res = t.shortest_path(point=(8, 8))
     assert len(res) > 0 and res[0] == (8, 8), 'Shortest path not computed.'
 
     # Test 4: Visualization
     t.show_topology(QPath=t.path, Greedy=res)
-    t.episode(start=(6, 3), interactive=True)
+    t.episode(start=(8, 8), interactive=True)
 
 
 if __name__ == '__main__':

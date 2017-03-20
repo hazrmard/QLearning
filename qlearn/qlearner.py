@@ -4,7 +4,10 @@ matrix.
 """
 
 import numpy as np
-import utils
+try:
+    from . import utils
+except ImportError:
+    import utils
 
 
 class QLearner:
@@ -27,6 +30,8 @@ class QLearner:
         policy (int): One of QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default
             UNIFORM.
         mode (int): One of QLearner.[OFFLINE | ONLINE]. Default OFFLINE.
+        seed (int): A seed for all random number generation in instance. Default
+            is None.
 
     Instance Attributes:
         _policy (func): a function reference to self.[_uniform | _greedy |
@@ -35,6 +40,8 @@ class QLearner:
         _action_param: A dict of helper values for GREEDY | SOFTMAX calcs.
         next_state (func): Returns next state given current state, action.
             Takes state, action indices as arguments.
+        random (np.random.RandomState): A random number generator local to this
+            instance.
     """
 
     UNIFORM = 0
@@ -45,10 +52,14 @@ class QLearner:
     ONLINE = 1
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
-                 policy=0, mode=0, **kwargs):
+                 policy=0, mode=0, seed=None, **kwargs):
+        if seed is None:
+            self.random = np.random.RandomState()
+        else:
+            self.random = np.random.RandomState(seed)
         self.set_reward_matrix(rmatrix)
         self.set_transition_matrix(tmatrix)
-        self.qmatrix = np.zeros_like(self.rmatrix)
+        self.qmatrix = np.ones_like(self.rmatrix)
         self.set_goal(goal)
         self.lrate = lrate
         self.discount = discount
@@ -82,8 +93,6 @@ class QLearner:
 
         elif policy == QLearner.SOFTMAX:
             self._policy = self._softmax_policy
-            self.qmatrix += 1   # To ensure non-zero initial Q-values for
-                                # softmax selection to work properly.
 
         else:
             raise ValueError('Policy does not exist.')
@@ -201,10 +210,15 @@ class QLearner:
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
         """
+        num_states = self.qmatrix.shape[0]
         for state in self.episodes():
+            limit = 0
             if self.mode == QLearner.OFFLINE:
                 self._update_policy()
-            while not self.goal(state):
+            # The limit variable keeps the number of iterations in check. They
+            # should not exceed the number of states in the system.
+            while not self.goal(state) and limit < num_states:
+                limit += 1
                 action = self.next_action(state)
                 self.qmatrix[state, action], state = self.utility(state, action)
 
@@ -223,6 +237,17 @@ class QLearner:
         return np.argmax(self.qmatrix[state])
 
 
+    def reset(self):
+        """
+        Resets self.qmatrix to initial state. This is useful in case the same
+        QLearner instance is being used again for learning using a different
+        policy or mode.
+        The qmatrix is not automatically reset for each learn() call to allow
+        for the learning process to build upon a custom qmatrix provided.
+        """
+        self.qmatrix = np.ones_like(self.rmatrix)
+
+
     def _uniform_policy(self, state):
         """
         Selects an action based on a uniform probability distribution.
@@ -233,7 +258,7 @@ class QLearner:
         Returns:
             Index of action in [r|q]matrix.
         """
-        return np.random.randint(self.qmatrix.shape[1])
+        return self.random.randint(self.qmatrix.shape[1])
 
 
     def _greedy_policy(self, state):
@@ -248,15 +273,15 @@ class QLearner:
             Index of action in [r|q]matrix.
         """
         if self.mode == QLearner.ONLINE:
-            if np.random.uniform() < self._action_param['max_prob']:
+            if self.random.uniform() < self._action_param['max_prob']:
                 return np.argmax(self.qmatrix[state])
             else:
-                return np.random.randint(self.qmatrix.shape[1])
+                return self.random.randint(self.qmatrix.shape[1])
         elif self.mode == QLearner.OFFLINE:
-            if np.random.uniform() < self._action_param['max_prob']:
+            if self.random.uniform() < self._action_param['max_prob']:
                 return self._action_param['max_util_indices'][state]
             else:
-                return np.random.randint(self.qmatrix.shape[1])
+                return self.random.randint(self.qmatrix.shape[1])
 
 
     def _softmax_policy(self, state):
@@ -272,13 +297,16 @@ class QLearner:
         """
         if self.mode == QLearner.ONLINE:
             cumulative_utils = np.cumsum(self.qmatrix[state])
-            random_num = np.random.rand() * cumulative_utils[-1]
+            random_num = self.random.rand() * cumulative_utils[-1]
             return np.searchsorted(cumulative_utils, random_num)
         elif self.mode == QLearner.OFFLINE:
-            random_num = np.random.rand()  \
+            random_num = self.random.rand()  \
                         * self._action_param['cumulative_utils'][state][-1]
-            return np.searchsorted(self._action_param['cumulative_utils'][state],\
+            ind = np.searchsorted(self._action_param['cumulative_utils'][state],\
                                 random_num)
+            # Searchsorted returns size of array if number is larger than
+            # largest element. The conditional return addresses that.
+            return ind if ind < self.qmatrix.shape[1] else ind - 1
 
 
     def _update_policy(self):

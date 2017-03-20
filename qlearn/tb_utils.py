@@ -7,7 +7,7 @@ import numpy as np
 
 
 
-def fault_algorithm(iterations, size):
+def fault_algorithm(iterations, size, random):
     """
     The Fault Algorithm generates a terrain by drawing a line of a random
     gradient through the grid, and be elevating points on one side, and
@@ -16,19 +16,21 @@ def fault_algorithm(iterations, size):
     Args:
         iterations (int): Number of times to generate faults.
         size (tuple): The size of the topology (rows, columns).
+        random (np.random.RandomState): A random number generator for consistent
+            terrain generation given the seed for TestBench.
 
     Returns:
         A 2D ndarray of dimensions=size where array[y, x] is altitude at
         that point in the topology.
     """
     topology = np.zeros(size)
-    angle = np.random.rand(iterations) * 2 * np.pi
+    angle = random.rand(iterations) * 2 * np.pi
     a = np.sin(angle)
     b = np.cos(angle)
-    disp = (np.random.rand() / iterations) * (np.arange(iterations)[::-1] + 1)
+    disp = (random.rand() / iterations) * (np.arange(iterations)[::-1] + 1)
     for i in range(iterations):
-        cx = np.random.rand() * size[1]
-        cy = np.random.rand() * size[0]
+        cx = random.rand() * size[1]
+        cy = random.rand() * size[0]
         for x in range(size[1]):
             for y in range(size[0]):
                 topology[y, x] += disp[i] \
