@@ -27,19 +27,27 @@ class QLearner:
             of [n states x n states] i.e. no actions but direct state transitions.
         lrate (float): Learning rate for q-learning.
         discount (float): Discount factor for q-learning.
-        policy (int): One of QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default
-            UNIFORM.
-        mode (int): One of QLearner.[OFFLINE | ONLINE]. Default OFFLINE.
+        exploration (float): Balance between exploring random states according
+            to action selection policy, or exploiting already learned utilities
+            to suggest max utility action. 1 means full exploration 0
+            exploitation. 0.5 means half of each. Default is 0.
+        policy (int): The action selection policy. Used durung learning/
+            exploration to randomly select actions from a state. One of
+            QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default UNIFORM.
+        mode (int): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
+            selection policy each learning episode. Online updates at every
+            state/action inside the learning episode. Default OFFLINE (faster).
         seed (int): A seed for all random number generation in instance. Default
             is None.
 
     Instance Attributes:
-        _policy (func): a function reference to self.[_uniform | _greedy |
-            _softmax]_policy
-        mode/policy/lrate/discount/rmatrix/tmatrix/goal: Same as args.
-        _action_param: A dict of helper values for GREEDY | SOFTMAX calcs.
+        goal (func): Takes a state number (int) and returns bool whether it is
+            a goal state or not.
+        mode/policy/lrate/discount/exploration/rmatrix/tmatrix: Same as args.
         next_state (func): Returns next state given current state, action.
             Takes state, action indices as arguments.
+        neighbours (func): Returns an array/generator of state indices adjacent
+            to given state via actions. Treated as a generator only.
         random (np.random.RandomState): A random number generator local to this
             instance.
     """
@@ -52,7 +60,7 @@ class QLearner:
     ONLINE = 1
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
-                 policy=0, mode=0, seed=None, **kwargs):
+                 exploration=0, policy=0, mode=0, seed=None, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -60,9 +68,11 @@ class QLearner:
         self.set_reward_matrix(rmatrix)
         self.set_transition_matrix(tmatrix)
         self.qmatrix = np.ones_like(self.rmatrix)
+        self._goals = set()
         self.set_goal(goal)
         self.lrate = lrate
         self.discount = discount
+        self.exploration = exploration
         self._action_param = {}   # helper parameter for GREEDY/SOFTMAX policies
         self.set_action_selection_policy(policy, mode, **kwargs)
 
@@ -125,8 +135,10 @@ class QLearner:
             goal.
         """
         if isinstance(goal, (np.ndarray, list, tuple, set)):
-            self.goal = lambda x: x in goal
+            self._goals = set(goal)
+            self.goal = lambda x: x in self._goals
         elif callable(goal):
+            self._goals = set([g for g in range(self.rmatrix.shape[0]) if goal(g)])
             self.goal = goal
         else:
             raise TypeError('Provide goal as list/set/array/tuple/function.')
@@ -153,22 +165,57 @@ class QLearner:
                 raise TypeError('Transition matrix must have integer contents.')
             self.tmatrix = tmatrix
             self.next_state = lambda s, a: self.tmatrix[s, a]
+            self.neighbours = lambda s: self.tmatrix[s, :]
         else:
             rows, cols = self.rmatrix.shape
             if rows != cols:
                 raise ValueError('R matrix must be square if no transition matrix.')
             self.next_state = lambda s, a: a
+            self.neighbours = lambda s: range(len(self.rmatrix.shape[0]))
 
 
-    def episodes(self):
+    def episodes(self, coverage=1., mode=None):
         """
         Provides a sequence of states for learning episodes to start from.
+
+        Args:
+            coverage (float): Fraction of states to generate for episodes.
+                Default= 1. Range [0, 1].
+            mode (str): The order in which to loop through states. If 'bfs',
+                performs a Breadth  First Search around goal states.
+                Default=None (simply loops from 0 to number of states.
 
         Returns:
             A generator of of state indices.
         """
-        for i in range(len(self.rmatrix)):
-            yield i
+        num_states = self.rmatrix.shape[0]
+        num = int(num_states * coverage)
+        if mode == 'bfs':
+            enqueued = np.zeros(num_states, dtype=bool)
+            queue = list(self._goals)
+            enqueued[queue] = True
+            i = 0
+            # Do a BFS of the goal states' connected neighbourhood.
+            while i < num and len(queue) > 0:
+                i += 1
+                state = queue.pop()
+                for n in self.neighbours(state):
+                    if not enqueued[n]:
+                        enqueued[n] = True
+                        queue.insert(0, n)
+                yield state
+            # If neighbourhoods of goal states are exhausted i.e. no more states
+            # that can be accessed from goal states through any actions, then
+            # generate the remainder by randomly picking from the unvisited
+            # states:
+            if i < num:
+                choices = self.random.choice(np.arange(num_states)[enqueued],\
+                                         size=num-i, replace=False)
+                for j in range(num-i):
+                    yield choices[j]
+        else:
+            for i in range(num):
+                yield i
 
 
     def next_action(self, state):
@@ -205,13 +252,19 @@ class QLearner:
                 next_state)
 
 
-    def learn(self):
+    def learn(self, coverage=1., ep_mode=None):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
+
+        Args:
+            coverage (float): Fraction of total states to start episodes from.
+                Default=1 i.e. all state are covered by episodes().
+            ep_mode (str): Order in which to iterate through states. See
+                episodes() mode argument.
         """
         num_states = self.qmatrix.shape[0]
-        for state in self.episodes():
+        for state in self.episodes(coverage=coverage, mode=ep_mode):
             limit = 0
             if self.mode == QLearner.OFFLINE:
                 self._update_policy()
@@ -226,7 +279,9 @@ class QLearner:
     def recommend(self, state):
         """
         Recommends an action based on the learned q matrix and current state.
-        Must be called after learn().
+        Must be called after learn(). Either recommends an exploratory action
+        or an action with the highest utility according to self.exploration
+        setting (1 to 0).
 
         Args:
             state (int): Index of current state in [r|q]matrix.
@@ -234,7 +289,14 @@ class QLearner:
         Returns:
             Index of action to take (column) in [r|q]matrix.
         """
-        return np.argmax(self.qmatrix[state])
+        if self.random.rand() < self.exploration:
+            # explore
+            action = self.next_action(state)
+            self.qmatrix[state, action], _ = self.utility(state, action)
+            return action
+        else:
+            # exploit
+            return np.argmax(self.qmatrix[state])
 
 
     def reset(self):

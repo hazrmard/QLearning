@@ -43,7 +43,7 @@ def test(func):
 @test
 def test_instantiation():
     """
-    Testing QLearner with initial arguments.
+    Testing QLearner with initial arguments and support functions.
     """
     # Set-up:
     STATES = 10
@@ -56,21 +56,25 @@ def test_instantiation():
     goal_l = (0, 1)
     goal_f = lambda x: x <= 1
     np.savetxt('test.dat', rmatrix_sq)
+    global QLEARNER
 
     # Test 1: list goal
     temp = QLearner(rmatrix_sq, goal_l)
     assert np.array_equal(temp.rmatrix, rmatrix_sq), "R matrix not equal to arg."
     assert temp.goal(0) and temp.goal(1) and not temp.goal(2) and not temp.goal(3), \
             'List goal not working.'
+    QLEARNER = temp
 
     # Test 2: function goal
     temp = QLearner(rmatrix_sq, goal_f)
     assert temp.goal(0) and temp.goal(1) and not temp.goal(2), 'Function goal not working.'
+    QLEARNER = temp
 
     # Test 3: File I/O
     temp = QLearner('test.dat', goal_l)
     assert temp.qmatrix.shape == rmatrix_sq.shape, "Q & R matrix dimension mismatch."
     assert np.array_equal(temp.rmatrix, rmatrix_sq), "R matrix not equal to arg."
+    QLEARNER = temp
 
     # Test 4: rectangular r matrix, no tmatrix
     try:
@@ -81,11 +85,14 @@ def test_instantiation():
     # Test 5: rectangular r matrix, t matrix of same dimension
     temp = QLearner(rmatrix_rec, goal_f, tmatrix)
     assert temp.next_state(1, 2) == tmatrix[1, 2], 'Next state prediction incorrect.'
+    QLEARNER = temp
+
+    # Test 6: episodes
+    l = set(temp.episodes(coverage=1.0))
+    assert l == set(range(len(temp.rmatrix))), 'Full episode coverage failed.'
 
     # Finalize
     os.remove('test.dat')
-    global QLEARNER
-    QLEARNER = temp
 
 
 @test
@@ -98,18 +105,21 @@ def test_offline_learning():
     QLEARNER.set_action_selection_policy(QLearner.UNIFORM)
     assert QLEARNER._policy == QLEARNER._uniform_policy, 'Incorrect policy set.'
     assert QLEARNER.policy == QLearner.UNIFORM, 'Incorrect policy mode.'
+    QLEARNER.reset()
     QLEARNER.learn()
 
     # Test 2: greedy
     QLEARNER.set_action_selection_policy(QLearner.GREEDY, max_prob=0.5)
     assert QLEARNER._policy == QLEARNER._greedy_policy, 'Incorrect policy set.'
     assert QLEARNER.policy == QLearner.GREEDY, 'Incorrect policy mode.'
+    QLEARNER.reset()
     QLEARNER.learn()
 
     # Test 3: softmax
     QLEARNER.set_action_selection_policy(QLearner.SOFTMAX)
     assert QLEARNER._policy == QLEARNER._softmax_policy, 'Incorrect policy set.'
     assert QLEARNER.policy == QLearner.SOFTMAX, 'Incorrect policy mode.'
+    QLEARNER.reset()
     QLEARNER.learn()
 
 
@@ -124,12 +134,14 @@ def test_online_learning():
     QLEARNER.set_action_selection_policy(QLearner.GREEDY, mode=QLearner.ONLINE, max_prob=0.5)
     assert QLEARNER._policy == QLEARNER._greedy_policy, 'Incorrect policy set.'
     assert QLEARNER.policy == QLearner.GREEDY, 'Incorrect policy mode.'
+    QLEARNER.reset()
     QLEARNER.learn()
 
     # Test 2: softmax
     QLEARNER.set_action_selection_policy(QLearner.SOFTMAX, mode=QLearner.ONLINE)
     assert QLEARNER._policy == QLEARNER._softmax_policy, 'Incorrect policy set.'
     assert QLEARNER.policy == QLearner.SOFTMAX, 'Incorrect policy mode.'
+    QLEARNER.reset()
     QLEARNER.learn()
 
 
@@ -140,6 +152,9 @@ def test_testbench():
     """
     # set up
     size = 10
+    mode = 'dfs'
+    coverage = 0.5
+    exploration = 0.5
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=400000, mode=QLearner.ONLINE, wrap=True)
@@ -166,6 +181,9 @@ def test_testbench():
         'Qlearner matrix size mismatch.'
 
     # Test 3: Pathfinding
+    t.qlearner.reset()
+    t.qlearner.learn(coverage=coverage, ep_mode=mode)
+    t.qlearner.exploration = exploration
     res = t.episode(start=(8, 8), interactive=False)
     assert res == t.path, 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'
