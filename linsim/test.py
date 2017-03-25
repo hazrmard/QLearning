@@ -3,14 +3,24 @@ Tests for the linsim package.
 """
 
 import os
-from flags import FlagGenerator
-from elements import Element
-from elements import ElementMux
-from nodes import Node
-from blocks import Block
-from netlist import Netlist
-from simulate import Simulator
-from system import System
+try:
+    from flags import FlagGenerator
+    from elements import Element
+    from elements import ElementMux
+    from nodes import Node
+    from blocks import Block
+    from netlist import Netlist
+    from simulate import Simulator
+    from system import System
+except ImportError:
+    from .flags import FlagGenerator
+    from .elements import Element
+    from .elements import ElementMux
+    from .nodes import Node
+    from .blocks import Block
+    from .netlist import Netlist
+    from .simulate import Simulator
+    from .system import System
 
 NUM_TESTS = 0
 TESTS_PASSED = 0
@@ -169,28 +179,32 @@ def test_block_class():
                   "E2 2 3 50")
     block1 = ".subckt block1 1 2 n3 n12\n" \
              + block1_def + "\n" \
-             + ".ends block1\n"
+             + ".ends block1"
 
     block2_def = ("e3 4 5 100\n"
                   "e4 3 4 whatever")
     block2 = ".subckt block2 1 2 n3 n12\n" \
                 + block2_def + "\n" \
-                ".ends block2\n"
+                ".ends block2"
 
-    block_str = block1 + "\n" \
-        + "e6 2 4 90\n" \
-        + "ELEM45 1 2 64\n" \
-        + block2 + "\n\n" \
-        + "es1 s1 1 10\n" \
-        + "es2 s2 3 10k\n" \
-        + "es3 s2 s1 1M\n" \
-        + "x1 1 2 3 4 BLocK1"
+    elems1 = "e6 2 4 90\n" \
+            + "ELEM45 1 2 64"
+    elems2 = "es1 s1 1 10\n" \
+            + "es2 s2 3 10k\n" \
+            + "es3 s2 s1 1M\n" \
+            + "x1 1 2 3 4 BLocK1"
+
+    block_str = block1 + "\n\t" + elems1 + "\n" + block2 + "\n\n" + elems2
+
+    block_repr = block1 + "\n" + block2 + "\n" + elems1 + "\n" + elems2
+
     block_defs = block_str.split('\n')
     elem = Element(definition='EN1 4 new_node 324k')
     elem_duplicate = Element(definition='E56 2 3 43k')
 
 
     # Test 1: Instantiation
+    flatten_block = Block('test', ('1', 'n2', 'node3'), block_defs)
     block = Block('test', ('1', 'n2', 'node3'), block_defs)
 
     # Test 2: Parsing correctness
@@ -203,9 +217,11 @@ def test_block_class():
     assert b2, 'Nested block key failure.'
     assert b1.name == 'block1', "Nested block name parsing failed."
     assert b2.name == 'block2', "Nested block name parsing failed."
-    assert b1.definition == block1_def.lower(), "Nested block def parsing failed."
-    assert b2.definition == block2_def.lower(), "Nested block def parsing failed."
+    assert b1.definition == block1_def.lower(), "Nested block def generation failed."
+    assert b2.definition == block2_def.lower(), "Nested block def generation failed."
+    assert str(b1).strip() == block1.lower(), 'Nested block to string conv failed.'
     assert b1_instance.block.name == 'block1', "Block instance failed."
+    assert block.definition == block_repr.lower(), 'Top level block-string conv. failed.'
 
     # Test 3: Block manipulation
     block.add(elem)
@@ -225,32 +241,47 @@ def test_block_class():
     assert 'es3' not in block.elements, 'Shorted elements not removed.'
     assert len(block.graph['s1']) == 2, 'Incorrect element union after short.'
 
+    # Test 5: block flattening
+    flatten_block.flatten()
+    assert 'x1' not in flatten_block.elements, 'Flattened block instance not removed.'
+    assert len(flatten_block.blocks) == 0, 'Block defs not removed after flattening.'
+    assert 'block1_1_e1' in flatten_block.elements, 'Block instance not expanded.'
+    assert 'block1_1_e2' in flatten_block.elements, 'Block instance not expanded.'
+    assert 'block1_1_3' in flatten_block.graph, 'Internal block node not flattened.'
+
 
 @test
-def test_netlist_io():
-    """Test Netlist class for reading/parsing"""
+def test_netlist_class():
+    """Test Netlist class for reading/parsing."""
 
     # Set up
     net = ("C1 0 T1 1mF\n"
            "R1 T1 N001 1k\n"
-           "G1 N001 0 T1 0 1 table=(0 0, 0.1 1m)\n"
+           "G1 N001 0 T1 0 1 table=(0 0,0.1 1m)\n"
            ".ic V(T1)=10V\n"
            ".tran 0 15s 0 1m uic\n"
            ".backanno\n"
            ".end")
+    net_list = ['* Netlist: test'] + net.lower().split('\n')
     tfile = open('test.net', 'w')
     tfile.write(net)
     tfile.close()
 
-    # Test 1: reading netlist file
-    ninstance = Netlist(path="test.net")
-    assert ninstance.compile_netlist() == net.lower(), "Netlist read incorrectly."
+    # Test 1: Instantiation/ reading netlist file
+    ninstance = Netlist('test', netlist=net_list[1:])
+    ninstance = Netlist('test', path="test.net")
 
     # Test 2: Parsing netlist
+    assert str(ninstance) == '\n'.join(net_list), 'Netlist to str failed.'
 
     # Finalizing
     os.remove('test.net')
 
+
+@test
+def test_simulator_class():
+    """Test circuit simulator."""
+    pass
 
 
 
@@ -262,7 +293,7 @@ if __name__ == '__main__':
     test_element_class()
     test_element_mux()
     test_block_class()
-    test_netlist_io()
+    test_netlist_class()
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))
     print('Total tests:\t' + str(NUM_TESTS))

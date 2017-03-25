@@ -7,7 +7,10 @@ definitions as defined in this module.
 """
 
 import re
-from nodes import Node
+try:
+    from nodes import Node
+except ImportError:
+    from .nodes import Node
 
 
 class Element:
@@ -25,6 +28,12 @@ class Element:
         **kwargs: Any number of keyword=value arguments for the element.
             num_nodes (int): An optional param to override Element.num_nodes
                 for the particular instance.
+
+    Instance Attributes:
+        nodes (list): List of Node objects.
+        name (str): Element name.
+        value (str/int): Element value.
+        kwargs (dict): All param=value element properties.
 
     Class Attributes:
         num_nodes (int): Number of nodes element is connected to.
@@ -68,8 +77,11 @@ class Element:
         Returns a netlist description of the element.
         """
         nodes = ' '.join([str(n) for n in self.nodes])
-        return self.name + ' ' + nodes + ' ' + str(self.value) + \
-                ' ' + ' '.join([k+'='+v for k, v in self.kwargs.items()])
+        result = self.name + ' ' + nodes + ' ' + str(self.value)
+        if len(self.kwargs):
+            result += ' ' + ' '.join([k+'='+v for k, v in self.kwargs.items()])
+        return result
+
 
     def __repr__(self):
         return self.name
@@ -242,6 +254,9 @@ class BlockInstance(Element):
         OR:
         *args: Any number of value arguments for the element. Of the form:
             <PREFIX><ID>, <NODE1>,..., [<VALUE1>,...], <BLOCK>
+
+    Instance Attributes:
+        block (Block): The Block instance this element is an instance of.
     """
 
     prefix = 'x'
@@ -250,7 +265,6 @@ class BlockInstance(Element):
     def __init__(self, block, *args, **kwargs):
         self.block = block
         super().__init__(*args, **kwargs)
-
 
 
 

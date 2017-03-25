@@ -13,7 +13,7 @@ class Node:
     """
 
     def __init__(self, name):
-        self.name = str(name)
+        self.name = str(name).lower()
 
 
     def __str__(self):

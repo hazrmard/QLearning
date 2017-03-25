@@ -3,168 +3,77 @@ This module defines the Netlist class. It is responsible for parsing and
 editing the netlist.
 """
 
-from elements import Element
-from blocks import Block
+try:
+    from elements import Element
+    from blocks import Block
+except ImportError:
+    from .elements import Element
+    from .blocks import Block
 
 
 class Netlist(Block):
     """
-    Netlist class parses a circuit netlist and applies modifications.
+    Netlist class parses a circuit netlist and applies modifications. Subclassed
+    from Block.
 
     Args:
         path (str): Path to netlist file. Specify either this OR netlist.
         netlist (tuple/list): Netlist in newline separated elements.
 
     Attributes:
-        netlist (list): A list of netlist comments/elements/directives.
         path (str): Filepath of netlist file (default empty string).
-        elements (list): Element declarations in the netlist.
         directives (list): Commands/definitions in the netlist.
     """
 
-    def __init__(self, path="", netlist=()):
-        self.elements = []
+    def __init__(self, name, path="", netlist=(), *args, **kwargs):
         self.directives = []
-        self.netlist = [n.lower() for n in netlist]
         self.path = path
         if len(path):
-            self.read_netlist(self.path)
-        elif len(self.netlist):
-            self.parse_netlist()
-        else:
+            netlist = self.read_netlist(self.path)
+        elif len(netlist) == 0:
             raise AttributeError('Specify either netlist or path.')
+        netlist = self._sanitize(''.join(netlist)).split('\n')
+        self._parse_directives(netlist)
+        super().__init__(name=name, nodes=(), definition=netlist, sanitize=False,\
+                            *args, **kwargs)
 
 
-    def read_netlist(self, path, parse=True):
+    def __str__(self):
+        result = '* Netlist: ' + self.name + '\n'
+        result += super().__str__(enclose=False)
+        if len(self.directives):
+            result += '\n' + '\n'.join(self.directives)
+        return result
+
+
+    def read_netlist(self, path):
         """
         Reads netlist from a file.
 
         Args:
             path (str): Path to netlist file.
-            parse (bool): Whether to parse netlist as well.
         """
         nfile = open(path, 'r')
-        self.netlist = nfile.readlines()
-        self.netlist = [x.lower().strip() for x in self.netlist]
+        netlist = nfile.readlines()
         nfile.close()
-        if parse:
-            self.parse_netlist()
+        return netlist
 
 
-    def parse_netlist(self):
+    def _parse_directives(self, netlist):
         """
         Parses the netlist into components and directives.
         """
-        for line in self.netlist:
+        for line in netlist:
             if self.is_directive(line):
                 self.directives.append(line)
-            elif self.is_element(line):
-                self.elements.append(line)
 
 
-    def parse_blocks(self):
+    def add_directive(self, directive):
         """
-        Parses (nested) block elements (subcircuits).
-        """
-        pass
-
-
-    def parse_directives(self):
-        """
-        Parses directives from a netlist.
-        """
-        pass
-
-
-    def modify_element(self, elem, line):
-        """
-        Modifies the netlist based on the directive(s) passed. Looks up
-        matching components in the netlist and overwrites/appends directive.
+        Appends a directive to the netlist. The last directive is always
+        '.end'. dir is inserted at second-last position in self.directives.
 
         Args:
-            elem (str): Element id in netlist.
-            line (str): Element definition to be written to netlist.
+            directive (str): A directive line.
         """
-        pass
-
-
-    def delete(self, elem):
-        """
-        Finds and deletes element from netlist.
-
-        Args:
-            elem (str): Element id in netlist.
-        """
-        self.elements = [x for x in self.elements if self.get_id(x) != elem.lower()]
-
-
-    def compile_netlist(self):
-        """
-        Compiles all modifications into a new netlist. Does not preserve
-        comments etc.
-
-        Returns:
-            A netlist string.
-        """
-        self.netlist = self.elements + self.directives
-        return '\n'.join(self.netlist)
-
-
-    def is_block(self, line):
-        """
-        Checks whether a line is a block definition (subcircuit).
-
-        Args:
-            line (str): A line in the netlist.
-
-        Returns:
-            A boolean -> True of line is block definition directive.
-        """
-        pass
-
-
-    def get_id(self, line):
-        """
-        Returns the element id from a netlist definition.
-
-        Args:
-            line (str): A single element declaration from the netlist.
-
-        Returns:
-            A string containing element id.
-        """
-        if self.is_element(line):
-            return (line.split(' ')[0]).strip()
-        else:
-            raise ValueError('Line is not an element definition.')
-
-
-    def get_nodes(self, line):
-        """
-        Returns the positive and negative nodes element is connected to.
-
-        Args:
-            line (str): A line of element definition from the netlist.
-
-        Returns:
-            A tuple of two node ids (str): (positive node, negative node)
-        """
-        split = line.split(' ')
-        return (split[1].strip(), split[2].strip())
-
-
-    def get_definition(self, elem):
-        """
-        Given element id, returns the netlist line defining it.
-
-        Args:
-            elem (Str): Element id in netlist.
-
-        Returns:
-            A single line of element's definition in netlist.
-            If not found, returns empty string.
-        """
-        for line in self.elements:
-            if elem.lower() == self.get_id(line):
-                return line
-        return ""
+        self.directives.insert(-1, directive)
