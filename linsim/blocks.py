@@ -78,7 +78,7 @@ class Block:
         """
         Returns just the internal definition of the block.
         """
-        return self.__str__(enclose=False).strip()
+        return self.__str__(enclose=False)
 
 
     def __str__(self, enclose=True):

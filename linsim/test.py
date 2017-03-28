@@ -7,6 +7,7 @@ try:
     from flags import FlagGenerator
     from elements import Element
     from elements import ElementMux
+    from directives import Directive
     from nodes import Node
     from blocks import Block
     from netlist import Netlist
@@ -16,6 +17,7 @@ except ImportError:
     from .flags import FlagGenerator
     from .elements import Element
     from .elements import ElementMux
+    from .directives import Directive
     from .nodes import Node
     from .blocks import Block
     from .netlist import Netlist
@@ -118,15 +120,44 @@ def test_element_class():
     elem = Element(definition=def3)
     assert [str(n) for n in elem.nodes] == ['n3', 'n2'], 'Nodes incorrectly parsed.'
     assert elem.value == 'n1 0', 'Value incorrectly parsed.'
-    assert hasattr(elem, 'table'), 'Param=Value pair incorrectly parsed.'
+    # assert hasattr(elem, 'table'), 'Param=Value pair incorrectly parsed.'
     assert elem.param('table') == '(0 0,10 100)', 'Param fetching failed.'
+    elem.param('table', '')
+    assert elem.param('table') is None, 'Param deletion failed.'
 
     elem = Element(num_nodes=3, definition=def3)
     assert elem.nodes == ['n3', 'n2', 'n1'], 'Custom node numbers failed.'
 
     # Test 2: checking argument/keyword parsing for default Element class
     elem = Element('T1', 10, 12, 100, k1=1, K2=2)
-    assert str(elem) == 't1 10 12 100 k1=1 k2=2', 'Arg parsing failed.'
+    assert str(elem) == 't1 10 12 100 k1=1 k2=2' or \
+                        str(elem) == 't1 10 12 100 k2=2 k1=1',\
+                        'Arg parsing failed.'
+
+
+@test
+def test_directive_class():
+    """Test netlist directive parsing"""
+
+    # Set up
+    dir1 = '.tran 0s 10s'
+    dir2 = '.ic V(n1)=10 i(10) =500mA'
+    dir3 = '.end'
+
+    # Test 1: Instantiation
+    ins1 = Directive(definition=dir1)
+    ins2 = Directive(definition=dir2)
+    ins3 = Directive(definition=dir3)
+
+    # Test 2: Type checking
+    assert ins1.kind == 'tran' and ins2.kind == 'ic' and ins3.kind == 'end',\
+                        'Incorrect directive types.'
+
+    # Test 3: String conversion
+    assert str(ins1) == dir1.lower(), 'Directive string conversion 1 failed.'
+    assert str(ins2) == '.ic v(n1)=10 i(10)=500ma' or \
+            str(ins2) == '.ic i(10)=500ma v(n1)=10',\
+            'Directive string conversion 2 failed.'
 
 
 @test
@@ -150,9 +181,8 @@ def test_element_mux():
     def_other = 'j20 asd knwe'
 
     # Test 1: Testing mux generation
-    mux = ElementMux(root=a)
-    assert set(mux.prefix_list) == set(['b', 'bc', 'x']), \
-                'Element mux generation failed.'
+    mux = ElementMux(root=a, leave=('x',))
+    assert set(mux.prefix_list) == set(['b', 'bc']), 'Element mux generation failed.'
 
     # Test 2: Testing multiplexing
     assert mux.mux(def_b).prefix == 'b', 'Incorrect multiplexing.'
@@ -196,7 +226,8 @@ def test_block_class():
 
     block_str = block1 + "\n\t" + elems1 + "\n" + block2 + "\n\n" + elems2
 
-    block_repr = block1 + "\n" + block2 + "\n" + elems1 + "\n" + elems2
+    block_repr1 = block1 + "\n" + block2 + "\n" + elems1 + "\n" + elems2
+    block_repr2 = block2 + "\n" + block1 + "\n" + elems1 + "\n" + elems2
 
     block_defs = block_str.split('\n')
     elem = Element(definition='EN1 4 new_node 324k')
@@ -221,7 +252,9 @@ def test_block_class():
     assert b2.definition == block2_def.lower(), "Nested block def generation failed."
     assert str(b1).strip() == block1.lower(), 'Nested block to string conv failed.'
     assert b1_instance.block.name == 'block1', "Block instance failed."
-    assert block.definition == block_repr.lower(), 'Top level block-string conv. failed.'
+    assert block.definition == block_repr1.lower() or \
+           block.definition == block_repr2.lower(),\
+           'Top level block-string conv. failed.'
 
     # Test 3: Block manipulation
     block.add(elem)
@@ -255,12 +288,11 @@ def test_netlist_class():
     """Test Netlist class for reading/parsing."""
 
     # Set up
-    net = ("C1 0 T1 1mF\n"
+    net = (".model sw sw0\n"
+           "C1 0 T1 1mF\n"
            "R1 T1 N001 1k\n"
            "G1 N001 0 T1 0 1 table=(0 0,0.1 1m)\n"
-           ".ic V(T1)=10V\n"
-           ".tran 0 15s 0 1m uic\n"
-           ".backanno\n"
+           ".ic 0 15s 0 1m uic V(T1)=10V\n"
            ".end")
     net_list = ['* Netlist: test'] + net.lower().split('\n')
     tfile = open('test.net', 'w')
@@ -278,7 +310,7 @@ def test_netlist_class():
     os.remove('test.net')
 
 
-@test
+#@test
 def test_simulator_class():
     """Test circuit simulator."""
     pass
@@ -292,6 +324,7 @@ if __name__ == '__main__':
     test_node_class()
     test_element_class()
     test_element_mux()
+    test_directive_class()
     test_block_class()
     test_netlist_class()
     print('\n==========\n')

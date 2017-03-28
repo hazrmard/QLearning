@@ -47,7 +47,7 @@ class Element:
     prefix = ''
     name = 'Element'
     value_regex = r'(?:^|\s+)((?<!=)[\w_\.]+(?=(?:$|\s+)))'
-    pair_regex = r'([\w]+=[^=]+?(?=(?:$|(?:\s+\S+=))))'
+    pair_regex = r'([\S]+=[^=]+?(?=(?:$|(?:\s+\S+=))))'
 
     def __init__(self, *args, **kwargs):
         if 'definition' in kwargs:
@@ -76,8 +76,12 @@ class Element:
         """
         Returns a netlist description of the element.
         """
+        result = self.name
         nodes = ' '.join([str(n) for n in self.nodes])
-        result = self.name + ' ' + nodes + ' ' + str(self.value)
+        if len(nodes):
+            result += ' ' + nodes
+        if len(self.value):
+            result += ' ' + str(self.value)
         if len(self.kwargs):
             result += ' ' + ' '.join([k+'='+v for k, v in self.kwargs.items()])
         return result
@@ -119,7 +123,10 @@ class Element:
             return self.kwargs.get(param)
         else:
             if value == '':
-                del self.kwargs[param]
+                try:
+                    del self.kwargs[param]
+                except KeyError:
+                    pass
             else:
                 self.kwargs[param] = value
 
@@ -189,8 +196,8 @@ class Element:
             self.kwargs = {p[0].strip(): p[1].strip() for p in
                            [pair.split('=') for pair in pairs]}
             self.kwargs = self._parse_pairs(self.kwargs)
-            for key, value in self.kwargs.items():
-                setattr(self, key, value)
+            # for key, value in self.kwargs.items():
+            #     setattr(self, key, value)
 
 
     def _parse_values(self, values):
@@ -235,8 +242,8 @@ class Element:
         self.nodes = self.args[1:1+self.num_nodes]
         self.value = self._parse_values(self.args[1+self.num_nodes:])
         self.kwargs = self._parse_pairs(self.kwargs)
-        for key, value in self.kwargs.items():
-            setattr(self, key, value)
+        # for key, value in self.kwargs.items():
+        #     setattr(self, key, value)
 
 
 
@@ -282,6 +289,7 @@ class ElementMux:
     Args:
         root (class): A class object whose subclasses will be instantiated
             based on the element prefix. Defaults to Element.
+        leave (tuple/list): A tuple of string prefixes to exclude from the mux.
 
     Class Attributes:
         identifier (func): A function that returns the identifier for an element.
@@ -294,21 +302,22 @@ class ElementMux:
 
     identifier = lambda x: x.prefix
 
-    def __init__(self, root=Element):
+    def __init__(self, root=Element, leave=('.', 'x')):
         self.subclasses = []
         self.prefix_list = []
         self._mux = {}
-        self.find_subclasses(root)
+        self.find_subclasses(root, leave)
         self.set_up_mux()
 
 
-    def find_subclasses(self, root):
+    def find_subclasses(self, root, leave):
         """
         Uses DFS to find all subclasses
 
        Args:
         root (class): A class object whose subclasses will be instantiated
             based on the element prefix. Defaults to Element.
+        leave (tuple/list): A tuple of string prefixes to exclude from the mux.
         """
         self.root = root
         source = []
@@ -318,7 +327,8 @@ class ElementMux:
         while len(source):
             subclass = source.pop()
             source.extend(subclass.__subclasses__())
-            sink.append(subclass)
+            if self.__class__.identifier(subclass) not in leave:
+                sink.append(subclass)
         self.subclasses = sink
 
 
@@ -384,4 +394,3 @@ by Block class to instantiate element definitions.
 It does not include BlockInstance as it is not an atomic element.
 """
 DEFAULT_MUX = ElementMux()
-DEFAULT_MUX.remove('x')
