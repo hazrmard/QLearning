@@ -322,20 +322,6 @@ class Block:
 
 
     @staticmethod
-    def is_directive(elem):
-        """
-        Checks whether a line is a directive.
-
-        Args:
-            elem (str/Element): A line in the netlist or an Element instance.
-
-        Returns:
-            boolean -> True if line is directive.
-        """
-        return str(elem)[0] == '.'
-
-
-    @staticmethod
     def is_comment(line):
         """
         Checks whether a line in the netlist is a comment.

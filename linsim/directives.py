@@ -31,6 +31,7 @@ class Directive(Element):
 
     prefix = '.'
     num_nodes = 0
+    name = 'Directive'
 
     @property
     def kind(self):

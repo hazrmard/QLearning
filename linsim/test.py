@@ -105,8 +105,8 @@ def test_element_class():
 
     # Set up
     def1 = "R100 N1 0 100k"
-    def2 = "C25 N1 N2 25u"
-    def3 = "G1 N3 n2 n1 0 table=(0 0, 10 100)"
+    def2 = "C25 N1 N2 25e-3"
+    def3 = "G1 N3 n2 n1 0 table=(0 1e-1, 10 100)"
 
     # Test 1: checking definition parsing for default Element class
     elem = Element(definition=def1)
@@ -115,13 +115,13 @@ def test_element_class():
 
     elem = Element(definition=def2)
     assert [str(n) for n in elem.nodes] == ['n1', 'n2'], 'Nodes incorrectly parsed.'
-    assert elem.value == '25u', 'Value incorrectly parsed.'
+    assert elem.value == '25e-3', 'Value incorrectly parsed.'
 
     elem = Element(definition=def3)
     assert [str(n) for n in elem.nodes] == ['n3', 'n2'], 'Nodes incorrectly parsed.'
     assert elem.value == 'n1 0', 'Value incorrectly parsed.'
     # assert hasattr(elem, 'table'), 'Param=Value pair incorrectly parsed.'
-    assert elem.param('table') == '(0 0,10 100)', 'Param fetching failed.'
+    assert elem.param('table') == '(0 1e-1,10 100)', 'Param fetching failed.'
     elem.param('table', '')
     assert elem.param('table') is None, 'Param deletion failed.'
 
@@ -285,35 +285,60 @@ def test_block_class():
 
 @test
 def test_netlist_class():
-    """Test Netlist class for reading/parsing."""
+    """Test Netlist class for reading/parsing"""
 
     # Set up
     net = (".model sw sw0\n"
+           ".subckt blah 1 2 3\n"
+           "r1 1 2 1e10\n"
+           "c1 1 3 1e-4\n"
+           ".ends blah\n"
            "C1 0 T1 1mF\n"
            "R1 T1 N001 1k\n"
            "G1 N001 0 T1 0 1 table=(0 0,0.1 1m)\n"
            ".ic 0 15s 0 1m uic V(T1)=10V\n"
            ".end")
     net_list = ['* Netlist: test'] + net.lower().split('\n')
+    definition = net_list[:9] + net_list[10:]
     tfile = open('test.net', 'w')
     tfile.write(net)
     tfile.close()
 
     # Test 1: Instantiation/ reading netlist file
-    ninstance = Netlist('test', netlist=net_list[1:])
-    ninstance = Netlist('test', path="test.net")
+    ninstance1 = Netlist('test', netlist=net_list[1:])
+    ninstance2 = Netlist('test', path="test.net")
 
     # Test 2: Parsing netlist
-    assert str(ninstance) == '\n'.join(net_list), 'Netlist to str failed.'
+    assert 'subckt' not in ninstance1.directives, 'Non-directives not ignored.'
+    assert ninstance1.definition == '\n'.join(definition), 'Incorrect definition.'
+    assert str(ninstance1) == '\n'.join(net_list), 'Netlist to str failed.'
+    assert str(ninstance2) == '\n'.join(net_list), 'Netlist to str failed.'
 
     # Finalizing
     os.remove('test.net')
 
 
-#@test
+@test
 def test_simulator_class():
-    """Test circuit simulator."""
-    pass
+    """Test circuit simulator"""
+
+    # Set up
+    net = ('*Test Circuit',
+           'C1 n1 0 1e-6',
+           'R1 n1 0 1e3',
+           '.ic V(n1)=10',
+           '.end')
+    ninstance = Netlist('Test', netlist=net)
+
+    # Test 1: Instantiation and preprocessing
+    sim = Simulator(netlist=ninstance, timestep=1e-4)
+    assert sim.ic == {'v(n1)':'10'}, 'Initial conditions incorrectly parsed.'
+
+    # Test 2: Running simulation
+    res1 = sim.run(duration=1e-3)
+    res2 = sim.run(duration=1e-3)
+    assert 'v(n1)' in res1, 'Incorrect keys in simulation result.'
+    assert res1['v(n1)'] > res2['v(n1)'], 'Simulator state does not persist.'
 
 
 
@@ -327,6 +352,7 @@ if __name__ == '__main__':
     test_directive_class()
     test_block_class()
     test_netlist_class()
+    test_simulator_class()
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))
     print('Total tests:\t' + str(NUM_TESTS))

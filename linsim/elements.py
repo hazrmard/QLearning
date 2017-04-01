@@ -46,7 +46,7 @@ class Element:
     num_nodes = 2
     prefix = ''
     name = 'Element'
-    value_regex = r'(?:^|\s+)((?<!=)[\w_\.]+(?=(?:$|\s+)))'
+    value_regex = r'(?:^|\s+)((?<!=)[\w_\.-]+(?=(?:$|\s+)))'
     pair_regex = r'([\S]+=[^=]+?(?=(?:$|(?:\s+\S+=))))'
 
     def __init__(self, *args, **kwargs):
