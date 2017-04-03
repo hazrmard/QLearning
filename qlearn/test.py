@@ -4,8 +4,12 @@ Tests for the qlearn package.
 
 import os
 import numpy as np
-from qlearner import QLearner
-from testbench import TestBench
+try:
+    from qlearner import QLearner
+    from testbench import TestBench
+except ImportError:
+    from .qlearner import QLearner
+    from .testbench import TestBench
 
 NUM_TESTS = 0
 TESTS_PASSED = 0
@@ -184,15 +188,15 @@ def test_testbench():
     t.qlearner.reset()
     t.qlearner.learn(coverage=coverage, ep_mode=mode)
     t.qlearner.exploration = exploration
-    res = t.episode(start=(8, 8), interactive=False)
+    res = t.episode(start=(9, 9), interactive=False)
     assert res == t.path, 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'
-    res = t.shortest_path(point=(8, 8))
-    assert len(res) > 0 and res[0] == (8, 8), 'Shortest path not computed.'
+    res = t.shortest_path(point=(9, 9))
+    assert len(res) > 0 and res[0] == (9, 9), 'Shortest path not computed.'
 
     # Test 4: Visualization
     t.show_topology(QPath=t.path, Greedy=res)
-    t.episode(start=(8, 8), interactive=True)
+    # t.episode(start=(8, 8), interactive=True)
 
 
 if __name__ == '__main__':

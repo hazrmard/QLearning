@@ -1,13 +1,15 @@
 """
 This module defines the QLearner class that learns behaviour from a Reward
-matrix.
+matrix. The QLearer implements tabular reinforcement learning by value
+iteration using off-policy Monte Carlo techniques to populate the utility
+values for each state/action pair.
 """
 
 import numpy as np
 try:
-    from . import utils
-except ImportError:
     import utils
+except ImportError:
+    from . import utils
 
 
 class QLearner:
@@ -44,10 +46,6 @@ class QLearner:
         goal (func): Takes a state number (int) and returns bool whether it is
             a goal state or not.
         mode/policy/lrate/discount/exploration/rmatrix/tmatrix: Same as args.
-        next_state (func): Returns next state given current state, action.
-            Takes state, action indices as arguments.
-        neighbours (func): Returns an array/generator of state indices adjacent
-            to given state via actions. Treated as a generator only.
         random (np.random.RandomState): A random number generator local to this
             instance.
     """
@@ -65,16 +63,32 @@ class QLearner:
             self.random = np.random.RandomState()
         else:
             self.random = np.random.RandomState(seed)
-        self.set_reward_matrix(rmatrix)
-        self.set_transition_matrix(tmatrix)
-        self.qmatrix = np.ones_like(self.rmatrix)
+
+        self.qmatrix = None
+        self.tmatrix = None
+        self.rmatrix = None
         self._goals = set()
-        self.set_goal(goal)
+        self._next_state = None
+        self._policy = None
         self.lrate = lrate
         self.discount = discount
         self.exploration = exploration
         self._action_param = {}   # helper parameter for GREEDY/SOFTMAX policies
+
+        self.set_rq_matrix(rmatrix)
+        self.set_transition_matrix(tmatrix)
+        self.set_goal(goal)
         self.set_action_selection_policy(policy, mode, **kwargs)
+
+    @property
+    def num_states(self):
+        """Returns number of states"""
+        return len(self.rmatrix)
+
+    @property
+    def num_actions(self):
+        """Returns number of possible actions"""
+        return self.rmatrix.shape[1]
 
 
     def set_action_selection_policy(self, policy, mode=0, **kwargs):
@@ -96,7 +110,7 @@ class QLearner:
         elif policy == QLearner.GREEDY:
             if 'max_prob' in kwargs:
                 self._action_param['max_prob'] = kwargs['max_prob'] \
-                                     - (1 - kwargs['max_prob']) / self.rmatrix.shape[1]
+                                     - (1 - kwargs['max_prob']) / self.num_actions
                 self._policy = self._greedy_policy
             else:
                 raise KeyError('"max_prob" keyword argument needed for GREEDY policy.')
@@ -108,14 +122,16 @@ class QLearner:
             raise ValueError('Policy does not exist.')
 
 
-    def set_reward_matrix(self, rmatrix):
+    def set_rq_matrix(self, rmatrix):
         """
-        Sets the reward matrix for the QLearner instance.
+        Sets the reward/q-value matrices for the QLearner instance.
 
         Args:
-            rmatrix (ndarray): The reward matrix of [n states x m actions]. OR
+            rmatrix (ndarray/str): The reward matrix of [n states x m actions].
+                OR
                 square matrix of [n states x n states] where each element is
                 the reward for n->m transition.
+                If string, then it is path to space delimited matrix file.
         """
         if isinstance(rmatrix, np.ndarray):
             self.rmatrix = rmatrix
@@ -123,6 +139,7 @@ class QLearner:
             self.rmatrix = utils.read_matrix(rmatrix)
         else:
             raise TypeError('Either provide filename or ndarray for R matrix.')
+        self.qmatrix = np.ones_like(self.rmatrix)
 
 
     def set_goal(self, goal):
@@ -138,7 +155,7 @@ class QLearner:
             self._goals = set(goal)
             self.goal = lambda x: x in self._goals
         elif callable(goal):
-            self._goals = set([g for g in range(self.rmatrix.shape[0]) if goal(g)])
+            self._goals = set([g for g in range(self.num_states) if goal(g)])
             self.goal = goal
         else:
             raise TypeError('Provide goal as list/set/array/tuple/function.')
@@ -164,14 +181,12 @@ class QLearner:
             if tmatrix.dtype != int:
                 raise TypeError('Transition matrix must have integer contents.')
             self.tmatrix = tmatrix
-            self.next_state = lambda s, a: self.tmatrix[s, a]
-            self.neighbours = lambda s: self.tmatrix[s, :]
+            self._next_state = lambda s, a: self.tmatrix[s, a]
         else:
             rows, cols = self.rmatrix.shape
             if rows != cols:
                 raise ValueError('R matrix must be square if no transition matrix.')
-            self.next_state = lambda s, a: a
-            self.neighbours = lambda s: range(len(self.rmatrix.shape[0]))
+            self._next_state = lambda s, a: a
 
 
     def episodes(self, coverage=1., mode=None):
@@ -188,10 +203,9 @@ class QLearner:
         Returns:
             A generator of of state indices.
         """
-        num_states = self.rmatrix.shape[0]
-        num = int(num_states * coverage)
+        num = int(self.num_states * coverage)
         if mode == 'bfs':
-            enqueued = np.zeros(num_states, dtype=bool)
+            enqueued = np.zeros(self.num_states, dtype=bool)
             queue = list(self._goals)
             enqueued[queue] = True
             i = 0
@@ -209,13 +223,31 @@ class QLearner:
             # generate the remainder by randomly picking from the unvisited
             # states:
             if i < num:
-                choices = self.random.choice(np.arange(num_states)[enqueued],\
+                choices = self.random.choice(np.arange(self.num_states)[enqueued],\
                                          size=num-i, replace=False)
                 for j in range(num-i):
                     yield choices[j]
         else:
             for i in range(num):
                 yield i
+
+
+    def neighbours(self, state):
+        """
+        Returns a list/generator of state indices adjacent to provided state
+        on the transition/reward matrix.
+
+        Args:
+            state (int): Index of state in [r|q] matrix.
+
+        Returns:
+            A list/generator of adjacent state indices. To be treated as a
+            generator.
+        """
+        if self.tmatrix is None:
+            return range(len(self.rmatrix))
+        else:
+            return self.tmatrix[state, :]
 
 
     def next_action(self, state):
@@ -229,6 +261,36 @@ class QLearner:
             An index for the [q|r]matrix (column).
         """
         return self._policy(state)
+
+
+    def next_state(self, state, action):
+        """
+        Returns the index of the next state based on the current state and
+        action taken.
+
+        Args:
+            state (int): Index of current state in [r|q]matrix.
+            action (int): Index of action taken in [r|q]matrix.
+
+        Returns:
+            int representing index of next state in [r|q] matrix.
+        """
+        return self._next_state(state, action)
+
+
+    def reward(self, cstate, action, nstate):
+        """
+        Returns the reward of taking action from state.
+
+        Args:
+            cstate (int): Index of current state in [r|q]matrix (row index).
+            action (int): Index of action to be taken from state (column index).
+            nstate (int): Index of next state in [r|q]matrix.
+
+        Returns:
+            A float indicating the reward.
+        """
+        return self.rmatrix[cstate, action]
 
 
     def utility(self, state, action):
@@ -246,7 +308,7 @@ class QLearner:
         """
         next_state = self.next_state(state, action)
         return (self.qmatrix[state, action] \
-                + self.lrate*(self.rmatrix[state, action]
+                + self.lrate*(self.reward(state, action, next_state)
                               + self.discount*np.max(self.qmatrix[next_state])
                               - self.qmatrix[state, action]),
                 next_state)
@@ -320,7 +382,7 @@ class QLearner:
         Returns:
             Index of action in [r|q]matrix.
         """
-        return self.random.randint(self.qmatrix.shape[1])
+        return self.random.randint(self.num_actions)
 
 
     def _greedy_policy(self, state):
@@ -338,12 +400,12 @@ class QLearner:
             if self.random.uniform() < self._action_param['max_prob']:
                 return np.argmax(self.qmatrix[state])
             else:
-                return self.random.randint(self.qmatrix.shape[1])
+                return self.random.randint(self.num_actions)
         elif self.mode == QLearner.OFFLINE:
             if self.random.uniform() < self._action_param['max_prob']:
                 return self._action_param['max_util_indices'][state]
             else:
-                return self.random.randint(self.qmatrix.shape[1])
+                return self.random.randint(self.num_actions)
 
 
     def _softmax_policy(self, state):

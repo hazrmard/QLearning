@@ -13,7 +13,8 @@ that were helpful in this project.
 * [Diamond-square algorithm](https://en.wikipedia.org/wiki/Diamond-square_algorithm)
 * [Fault algorithm](http://www.lighthouse3d.com/opengl/terrain/index.php3?fault)
 
-## Books
+## Books/Theses
 
 * Artificial Intelligence - Russel, Peter, Norvig
 * [Reinforcement Learning: An Introduction - Sutton, Barto](http://www.incompleteideas.net/sutton/book/the-book.html)
+* [Reinforcement Learning using Neural Networks - Remi Coulom](https://www.remi-coulom.fr/Thesis/)

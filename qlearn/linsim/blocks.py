@@ -20,6 +20,9 @@ class Block:
         .subckt <NAME> <NODE1>,..., [<PARAM1=VALUE1>,...]
         ELEMENT DEFINITIONS...
         .ends <NAME>
+    A block is comprised of elements and nested block definitions (Block).
+    Instances of block definitions are treated as elements and represented by
+    BlockInstance class which is a subclass of Element.
 
     Args:
         name (str): the name of the block.
@@ -61,7 +64,7 @@ class Block:
     pair_regex = elements.Element.pair_regex
 
     def __init__(self, name, nodes, definition=(), mux=elements.DEFAULT_MUX, **kwargs):
-        self.name = name
+        self.name = name.lower()
         self.mux = mux
         self.nodes = nodes
         self.num_nodes = len(nodes)
@@ -105,6 +108,24 @@ class Block:
             return result
         else:
             return result[:-1]  # leave off the trailing \n
+
+
+    def __repr__(self):
+        return self.name
+
+
+    def __hash__(self):
+        return hash(self.name)
+
+
+    def __eq__(self, other):
+        """
+        Equality check by block name. Does NOT compare definition.
+        """
+        if isinstance(other, Block):
+            return other.name == self.name
+        else:
+            return other.__eq__(self.name)
 
 
     def flatten(self):
@@ -230,17 +251,41 @@ class Block:
                 self.add(elem)
 
 
-    def add(self, elem):
+    def instance(self, name, nodes, *args, **kwargs):
         """
-        Adds element to block.
+        Creates an instance of current block as a BlockInstance object.
 
         Args:
-            elem (Element): An Element instance (or subclass).
+            name (str): Name of block. Should have an instance prefix e.g
+                xBlockName.
+            nodes (list/tuple): A list of Node objects/names the instance is
+                connected to.
+            *args: Positional arguments required by the instance.
+            **kwargs: Any key=value parameters needed by the instance.
+
+        Returns:
+            A BlockInstance object.
+        """
+        return elements.BlockInstance(self, name, *nodes, *args, **kwargs)
+
+
+    def add(self, elem):
+        """
+        Adds an Element or a BlockInstance to current block.
+        Elements (and BlockInstances) get appended to self.elements and the
+        adjacency list in self.graph.
+
+        Args:
+            elem (Element): An Element or BlockInstance (or subclass).
         """
         if isinstance(elem, elements.Element):
             if elem in self.elements:           # check if duplicate
                 raise ValueError('Duplicate element: ' + elem.name + ' already exists.')
             else:
+                if self.is_block_instance(elem):
+                    if elem.block.name not in self.blocks:
+                        raise ValueError('Block instance of ' + elem.block.name\
+                                        + ' is not defined.')
                 self.elements.append(elem)      # add elem to elements list
                 for node in set(elem.nodes):    # add elem to adjacency list
                     if self.graph.get(node):
@@ -248,8 +293,23 @@ class Block:
                     else:
                         self.graph[node] = [elem]
         else:
-            raise TypeError('elem must be an instance of Element.')
+            raise TypeError('add() only accepts instances of Element.')
 
+
+    def add_block(self, block):
+        """
+        Adds a block definition to current block.
+
+        Args:
+            block (Block): A Block object to be nested in the current block.
+                Note that this will just add the definition and not an instance
+                of that block definition to the circuit.
+        """
+        if isinstance(block, Block):
+            if block in self.blocks:
+                raise ValueError('Duplicate block:' + block.name + 'already exists.')
+            else:
+                self.blocks[block] = block
 
 
     def remove(self, elem):
@@ -267,6 +327,21 @@ class Block:
                     if len(self.graph[node]) == 0:
                         del self.graph[node]
 
+
+    def remove_block(self, block):
+        """
+        Removes block definition from current block. All instances of that
+        definition are also removed.
+
+        Args:
+            block (str/Block): Block object or name of block to remove.
+        """
+        if block in self.blocks:
+            del self.blocks[block]
+            for elem in self.elements:
+                if isinstance(elem, elements.BlockInstance):
+                    if elem.block == block:
+                        self.remove(elem)
 
 
     def short(self, node1, node2):
@@ -346,4 +421,8 @@ class Block:
         Returns:
             boolean -> True if line is a block instance declaration.
         """
-        return str(elem)[:len(self.__class__.prefix)] == self.__class__.prefix
+        if isinstance(elem, (str, bytes)):
+            return str(elem)[:len(self.__class__.prefix)] == self.__class__.prefix
+        elif isinstance(elem, elements.BlockInstance):
+            return True
+        return False

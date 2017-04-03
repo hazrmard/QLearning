@@ -14,7 +14,7 @@ class Directive(Element):
     """
     A directive defines an instruction in the netlist informing the simulation.
     It starts with a period '.'. Of the format:
-        .TYPE [ARG1 ARG2...] [PARAM1=VALUE1,...]
+        .TYPE [ARG1 ARG2...] [PARAM1=VALUE1 ...]
     Subclassed from Element.
 
     Args:

@@ -35,18 +35,21 @@ import matplotlib.pyplot as plt
 from qlearn import QLearner
 from qlearn import TestBench
 
-NUM_TRIALS = 5
-EPISODES_PER_TRIAL = 200
-TOPOLOGY_SIZE = 10
-GOALS = TOPOLOGY_SIZE
-TOPOLOGY_METHOD = 'fault'
-WRAP = False
+NUM_TRIALS = 5                      # Number of topologies to generate
+EPISODES_PER_TRIAL = 100            # Number of points to test per topology
+TOPOLOGY_SIZE = 10                  # Length of size of topology
+GOALS = TOPOLOGY_SIZE               # Number of goal states
+TOPOLOGY_METHOD = 'fault'           # Topology generation algorithm
+WRAP = False                        # Whether topology wraps around edges
 POLICIES = (QLearner.UNIFORM, QLearner.GREEDY, QLearner.SOFTMAX)
 policy_str = ('Uniform', 'Greedy', 'Softmax')
-LEARNING_RATE = 0.25
-DISCOUNT_FACTOR = 1
-GREEDY_MAX_PROB = 0.25
-MODE = QLearner.OFFLINE
+LEARNING_RATE = 0.25                # Learning rate for Q-Learning algorithm
+DISCOUNT_FACTOR = 1                 # Discount factor for Q-Learning algorithm
+EXPLORATION = 0.50                  # Exploration vs. Exploitation factor
+GREEDY_MAX_PROB = 0.25              # Probability of choosing max. uti. action (greedy)
+MODE = QLearner.OFFLINE             # Action selection policy update mode
+COVERAGE = 0.5                      # State coverage for learning episodes
+LEARNING_MODE = 'dfs'               # Order of states in episodes
 
 # RPATHS is a 3D arraf of path lengths from a point to a goal relative to the
 # path length computed by a greedy algorithm.
@@ -65,8 +68,9 @@ for trial in range(NUM_TRIALS):
     for i, policy in enumerate(POLICIES):
         testbench = TestBench(size=TOPOLOGY_SIZE, seed=trial, method=TOPOLOGY_METHOD,\
                     goals=TOPOLOGY_SIZE, wrap=WRAP, lrate=LEARNING_RATE,\
-                    discount=DISCOUNT_FACTOR, policy=policy, max_prob=GREEDY_MAX_PROB)
-        testbench.qlearner.learn()
+                    discount=DISCOUNT_FACTOR, policy=policy, max_prob=GREEDY_MAX_PROB,\
+                    exploration=EXPLORATION)
+        testbench.qlearner.learn(coverage=COVERAGE, ep_mode=LEARNING_MODE)
         tb.append(testbench)
 
     # Each episode generates a random point which is used by all policies to
@@ -92,7 +96,7 @@ for trial in range(NUM_TRIALS):
             RAVGHT[trial, episode, p] = path_ht / greedy_ht
 
 PRPATHS = np.zeros(len(POLICIES))    # Policy-wise relative path length
-PRAVGHT = np.zeros_like(PRPATHS)      # Policy-wise relative average height
+PRAVGHT = np.zeros_like(PRPATHS)     # Policy-wise relative average height
 for p in range(len(POLICIES)):
     PRPATHS[p] = np.average(RPATHS[:, :, p])
     PRAVGHT[p] = np.average(RAVGHT[:, :, p])
@@ -108,7 +112,7 @@ rects1 = ax.bar(ind, PRPATHS, width, color='r')
 rects2 = ax.bar(ind + width, PRAVGHT, width, color='y')
 
 # add some text for labels, title and axes ticks
-ax.set_title('Path lengths and average heights relative to greedy approach.')
+ax.set_title("Path lengths and average heights relative to Dijkstra's algorithm.")
 ax.set_xticks(ind + width / 2)
 ax.set_xticklabels(policy_str)
 ax.legend((rects1[0], rects2[0]), ('Path Length', 'Path Height'))

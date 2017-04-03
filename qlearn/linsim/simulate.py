@@ -8,6 +8,9 @@ os.environ['LANG'] = 'en_US.UTF-8'
 import copy
 import ahkab
 
+# Fixed time-step too small error. Make larger if errors persist.
+ahkab.options.transient_max_nr_iter = 30
+
 
 class Simulator:
     """
@@ -77,7 +80,7 @@ class Simulator:
         # provided to the class.
         x0 = 'op' if len(self.ic) == 0 else ahkab.new_x0(self.circuit, self.ic)
         tran = ahkab.new_tran(tstart=0, tstop=duration, tstep=self.timestep,\
-                              x0=x0)
+                              x0=x0, method=ahkab.transient.TRAP)
         res = ahkab.run(self.circuit, tran)['tran']
         return self.postprocess(res)
 

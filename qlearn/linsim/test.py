@@ -6,6 +6,7 @@ import os
 try:
     from flags import FlagGenerator
     from elements import Element
+    from elements import BlockInstance
     from elements import ElementMux
     from directives import Directive
     from nodes import Node
@@ -16,6 +17,7 @@ try:
 except ImportError:
     from .flags import FlagGenerator
     from .elements import Element
+    from elements import BlockInstance
     from .elements import ElementMux
     from .directives import Directive
     from .nodes import Node
@@ -269,6 +271,15 @@ def test_block_class():
     assert elem not in block.elements, 'Element removal failed.'
     assert elem not in block.graph[elem.nodes[0]], 'Element removal failed.'
     assert block.graph.get(elem.nodes[1]) is None, 'Element removal failed.'
+
+    block.add_block(block)
+    assert block in block.blocks, 'Programmatic block addition failed.'
+    block.add(block.instance(name='xTest', nodes=('n5', 'n6', 'n7', 'n8')))
+    assert 'xtest' in block.elements, 'Programmatic instance addition failed.'
+    block.remove_block(block)
+    assert block.name not in block.blocks, 'Programmatic block removal failed.'
+    assert 'xtest' not in block.elements, 'Programmatic instance removal failed.'
+
     block.short('s2', 's1')
     assert 's2' not in block.graph, 'Shorted node not removed from block.'
     assert 'es3' not in block.elements, 'Shorted elements not removed.'
@@ -325,8 +336,10 @@ def test_simulator_class():
     # Set up
     net = ('*Test Circuit',
            'C1 n1 0 1e-6',
-           'R1 n1 0 1e3',
+           'R1 n2 0 1e3',
+           's1 n1 n2 n1 0 switch',
            '.ic V(n1)=10',
+           '.model sw switch von=6 voff=5 ron=1 roff=1e6',
            '.end')
     ninstance = Netlist('Test', netlist=net)
 

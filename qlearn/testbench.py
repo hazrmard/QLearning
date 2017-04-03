@@ -8,13 +8,13 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 try:
-    from . import QLearner
-    from .tb_utils import abs_cartesian
-    from .tb_utils import fault_algorithm
-except ImportError:
     from qlearner import QLearner
     from tb_utils import abs_cartesian
     from tb_utils import fault_algorithm
+except ImportError:
+    from . import QLearner
+    from .tb_utils import abs_cartesian
+    from .tb_utils import fault_algorithm
 
 
 

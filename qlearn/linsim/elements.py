@@ -255,12 +255,13 @@ class BlockInstance(Element):
         block (Block): Block the element is an instance of.
 
         definition (str): A netlist definition of the instance. Of the form:
-            <PREFIX><ID> <NODE1>... [<VALUE1>...] [<PARAM1>=<VALUE1>...] <BLOCK>
-            Where <BLOCK> is the name of the block being instantiated.
+            <PREFIX><ID> <NODE1>... [<VALUE1>...] [<PARAM1>=<VALUE1>...] <BLOCKNAME>
+            Where <BLOCKNAME> is the name of the block being instantiated.
             <PREFIX> should be Block.prefix (which is 'x' by default.).
         OR:
         *args: Any number of value arguments for the element. Of the form:
-            <PREFIX><ID>, <NODE1>,..., [<VALUE1>,...], <BLOCK>
+            <PREFIX><ID>, <NODE1>,..., [<VALUE1>,...]
+        **kwargs: Any number of key=value pairs for the instance.
 
     Instance Attributes:
         block (Block): The Block instance this element is an instance of.
@@ -271,6 +272,11 @@ class BlockInstance(Element):
 
     def __init__(self, block, *args, **kwargs):
         self.block = block
+        kwargs['num_nodes'] = block.num_nodes
+        if 'definition' not in kwargs:
+            if args[-1] != block.name:
+                args = list(args)
+                args.append(block.name)
         super().__init__(*args, **kwargs)
 
 
