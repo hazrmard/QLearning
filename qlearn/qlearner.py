@@ -1,8 +1,12 @@
 """
 This module defines the QLearner class that learns behaviour from a Reward
-matrix. The QLearer implements tabular reinforcement learning by value
-iteration using off-policy Monte Carlo techniques to populate the utility
-values for each state/action pair.
+matrix. The QLearer learns the action policy for the system by value
+iteration using off-policy temporal difference learning to populate the value
+matrix (Q-matrix) for each state/action pair.
+
+    Value(state, action) = Q-Matrix[state, action]
+
+    Policy(action | state) = max(Value(state, a) | a => all possible actions)
 """
 
 import numpy as np

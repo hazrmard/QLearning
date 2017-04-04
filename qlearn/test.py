@@ -6,10 +6,14 @@ import os
 import numpy as np
 try:
     from qlearner import QLearner
+    from flearner import FLearner
     from testbench import TestBench
+    from linsim import FlagGenerator
 except ImportError:
     from .qlearner import QLearner
+    from .flearner import FLearner
     from .testbench import TestBench
+    from .linsim import FlagGenerator
 
 NUM_TESTS = 0
 TESTS_PASSED = 0
@@ -47,7 +51,7 @@ def test(func):
 @test
 def test_instantiation():
     """
-    Testing QLearner with initial arguments and support functions.
+    Testing common QLearner initial arguments and support functions.
     """
     # Set-up:
     STATES = 10
@@ -150,7 +154,7 @@ def test_online_learning():
 
 
 @test
-def test_testbench():
+def qlearner_testbench():
     """
     Testing Qlearner testbench.
     """
@@ -162,7 +166,7 @@ def test_testbench():
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=400000, mode=QLearner.ONLINE, wrap=True)
-    assert t.qlearner.mode == QLearner.ONLINE, 'Args not passed on to QLearner.'
+    assert t.learner.mode == QLearner.ONLINE, 'Args not passed on to QLearner.'
     t = TestBench(size=size, goals=[(1, 1), (2, 2), (2*size, size)])
     assert t.num_goals == 2, 'Goal states incorrectly processed.'
     t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False,\
@@ -171,23 +175,23 @@ def test_testbench():
                     policy=QLearner.SOFTMAX)
 
     # Test 2: Qlearner compatibility
-    t.qlearner.learn()
-    t2.qlearner.learn()
+    t.learner.learn()
+    t2.learner.learn()
     assert np.array_equal(t.topology, t2.topology), \
         'Identically seeded topologies not equal.'
-    assert np.array_equal(t.qlearner.tmatrix, t2.qlearner.tmatrix), \
+    assert np.array_equal(t.learner.tmatrix, t2.learner.tmatrix), \
         'Identically seeded tmatrices not equal.'
-    assert np.array_equal(t.qlearner.rmatrix, t2.qlearner.rmatrix), \
+    assert np.array_equal(t.learner.rmatrix, t2.learner.rmatrix), \
         'Identically seeded rmatrices not equal.'
-    assert np.array_equal(t.qlearner.qmatrix, t2.qlearner.qmatrix), \
+    assert np.array_equal(t.learner.qmatrix, t2.learner.qmatrix), \
         'Identically seeded qmatrices not equal.'
-    assert t.qlearner.qmatrix.size == size * size * len(t.actions), \
+    assert t.learner.qmatrix.size == size * size * len(t.actions), \
         'Qlearner matrix size mismatch.'
 
     # Test 3: Pathfinding
-    t.qlearner.reset()
-    t.qlearner.learn(coverage=coverage, ep_mode=mode)
-    t.qlearner.exploration = exploration
+    t.learner.reset()
+    t.learner.learn(coverage=coverage, ep_mode=mode)
+    t.learner.exploration = exploration
     res = t.episode(start=(9, 9), interactive=False)
     assert res == t.path, 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'
@@ -195,8 +199,41 @@ def test_testbench():
     assert len(res) > 0 and res[0] == (9, 9), 'Shortest path not computed.'
 
     # Test 4: Visualization
-    t.show_topology(QPath=t.path, Greedy=res)
+    t.show_topology(QPath=t.path, Dijkstra=res)
     # t.episode(start=(8, 8), interactive=True)
+
+
+#@test
+def flearner_testbench():
+    """Testing FLearner testbench"""
+
+    # Set up
+    size = 10
+    ep_mode = 'dfs'
+    coverage = 0.25
+    exploration = 0.5
+    seed = 1000
+    lrate = 1e-3
+    discount = 0.5
+    start = (3, 4)
+    def func(s):
+        return np.array([s[0], s[1], s[1]**2, 1])
+
+    # Test 1: Instantiation
+    t = TestBench(size=size, seed=seed, learner=FLearner, lrate=lrate,
+                  discount=discount, exploration=exploration, func=func)
+
+    # Test 2: F learning
+    t.learner.learn(coverage=coverage, ep_mode=ep_mode)
+    res = t.episode(start=start, interactive=False)
+    assert res == t.path, 'Returned list not equal to stored path.'
+    assert len(res) > 0, 'Episode path not computed.'
+    res = t.shortest_path(point=start)
+    assert len(res) > 0 and res[0] == start, 'Shortest path not computed.'
+
+    # Test 3: Visualization
+    t.show_topology(QPath=t.path, Dijkstra=res)
+
 
 
 if __name__ == '__main__':
@@ -204,7 +241,8 @@ if __name__ == '__main__':
     test_instantiation()
     test_offline_learning()
     test_online_learning()
-    test_testbench()
+    qlearner_testbench()
+    flearner_testbench()
 
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))

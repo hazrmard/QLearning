@@ -4,6 +4,7 @@ flag combinations for use in the simulation (and vice versa).
 """
 
 import math
+import numbers
 
 
 class FlagGenerator:
@@ -113,9 +114,9 @@ class FlagGenerator:
             for i in reversed(num):
                 number += i * pow(current, power)
                 power += 1
-        elif isinstance(num, int):   # if num is int, assumes it is in base 10
+        elif isinstance(num, numbers.Number):   # if num is int, assumes it is in base 10
             if current == 10:
-                number = num
+                number = int(num)
             else:
                 raise ValueError('Integer num only valid for current basis=10.')
         else:
@@ -124,7 +125,7 @@ class FlagGenerator:
         if number == 0:
             return [0]
 
-        result = [0] * math.ceil(math.log(number) / math.log(to))
+        result = [0] * math.ceil((math.log(number) + 1) / math.log(to))
         for i in range(-1, -len(result)-1, -1):
             result[i] = number % to
             number = int((number - result[i]) / to)

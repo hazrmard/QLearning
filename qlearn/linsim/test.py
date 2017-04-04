@@ -70,10 +70,10 @@ def test_flag_generator():
     assert gen.states == states, "Flag state calculation failed."
 
     # Test 2: Basis conversion
-    assert gen.convert_basis(10, 2, 5) == [1, 0, 1], "Decimal to n-ary failed."
+    assert gen.convert_basis(10, 2, 5) == [0, 1, 0, 1], "Decimal to n-ary failed."
     assert gen.convert_basis(6, 10, (2, 4)) == [1, 6], "N-ary to decimal failed."
-    assert gen.convert_basis(2, 8, (1, 0, 1)) == [5], "N-ary to n-ary failed."
-    assert gen.convert_basis(10, 2, [1, 0]) == [1, 0, 1, 0], "Decimal to n-ary failed."
+    assert gen.convert_basis(2, 8, (1, 0, 1)) == [0, 5], "N-ary to n-ary failed."
+    assert gen.convert_basis(10, 2, [1, 0]) == [0, 1, 0, 1, 0], "10-ary to n-ary failed."
 
     # Test 3: Encoding and decoding
     assert gen.decode(12) == [2, 0, 0], 'Decoding failed.'
