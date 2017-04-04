@@ -2,6 +2,9 @@
 This module creates a testbench for the learning algorithm which illustrates
 its progress graphically. The problem is a tolopogy where the objective is to
 get to the lowest altitude possible.
+
+Note: TestBench uses (row, column) (y, x) cordinate convention for consistency
+with array indexing.
 """
 
 import numpy as np
@@ -83,7 +86,7 @@ class TestBench:
         self.topology = np.zeros((size, size))
         self.size = size
         self.states = size * size
-        self.actions = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
+        self.actions = np.array([[0, -1], [0, 1], [-1, 0], [1, 0]])
         self.path = []
         self.tmatrix = np.array([])
         self.rmatrix = np.array([])
@@ -102,10 +105,10 @@ class TestBench:
         # plotting variables
         self.__class__.plot_num += 1
         self.fig_num = self.__class__.plot_num
-        self.fig = None
-        self.topo_ax = None
-        self.topo_surface = None
-        self.path_line = None
+        # self.fig = None
+        # self.topo_ax = None
+        # self.topo_surface = None
+        # self.path_line = None
 
         self.create_topology(method)
         self.generate_trg(wrap)
@@ -118,9 +121,10 @@ class TestBench:
         """
         if learner == FLearner:
             flag = FlagGenerator(self.size, self.size)
+            action = FlagGenerator(2, 2)
             self.learner = FLearner(rmatrix=self.rmatrix, goal=self.goals,
-                                    stateconverter=flag, tmatrix=self.tmatrix,
-                                    seed=self.seed, **kwargs)
+                                    stateconverter=flag, actionconverter=action,
+                                    tmatrix=self.tmatrix, seed=self.seed, **kwargs)
         elif learner == QLearner:
             self.learner = QLearner(rmatrix=self.rmatrix, goal=self.goals,
                                     tmatrix=self.tmatrix, seed=self.seed, **kwargs)
@@ -228,46 +232,70 @@ class TestBench:
         return path
 
 
-    def show_topology(self, **paths):
+    def show_topology(self, showfield=False, **paths):
         """
         Draws a surface plot of the topology, marks goal states, and any episode
         up to its current progress.
 
         Args:
+            showfield (bool): Whether to show a field plot of optimal actions
+                on each state.
             **paths: A sequence of keyword arguments describing paths to plot
                 on the topology. They should be of the form:
                 <PATH_NAME>=[LIST OF (y, x) COORDINATE PAIRS]
         """
-        self.fig = plt.figure(self.fig_num)
-        self.topo_ax = self.fig.add_subplot(111, projection='3d')
-        self.path_line = []
-        self.topo_ax.invert_yaxis()
+        # Set up figure and axes
+        fig = plt.figure(self.fig_num)
+        if showfield:
+            topo_ax = fig.add_subplot(121, aspect='equal', projection='3d')
+            field_ax = fig.add_subplot(122, aspect='equal')
+            field_ax.invert_yaxis()
+        else:
+            topo_ax = fig.add_subplot(111, projection='3d')
+        path_line = []
+        topo_ax.invert_yaxis()
         # Plot 3d topology surface
-        x, y = np.meshgrid(np.linspace(0, self.size-1, self.size),\
-                            np.linspace(0, self.size-1, self.size))
+        x, y = np.meshgrid(np.linspace(0, self.size-1, self.size),
+                           np.linspace(0, self.size-1, self.size))
         z = self.topology.reshape(x.shape)
-        self.topo_surface = self.topo_ax.plot_surface(x, y, z, cmap='gist_earth')
+        topo_ax.plot_surface(x, y, z, cmap='gist_earth')
+        # Plot value surface
+        if showfield:
+            vals, inds = list(zip(*[self.learner.value(s) for s in range(self.states)]))
+            vals = np.abs((vals - min(vals)))
+            vals = vals / max(vals)
+            inds = np.array(inds, dtype=int)
+            # action_y multiplied by negative val since y-axes are inverted (bug)
+            action_y = self.actions[inds][:, 0] * -vals
+            action_x = self.actions[inds][:, 1] * vals
+            field_ax.quiver(np.ravel(x), np.ravel(y),
+                            action_x, action_y, np.ravel(z), cmap='gist_earth')
         # Plot goal states
         gc = [self.state2coord(i) for i in self.goals]  # goal coords
         gz = [self.topology[g[0], g[1]] for g in gc]
         gx = [g[1] for g in gc]
         gy = [g[0] for g in gc]
-        self.topo_ax.scatter(gx, gy, gz)
+        topo_ax.scatter(gx, gy, gz)
         # Plot path
         for path, coords in paths.items():
             px = [p[1] for p in coords]
             py = [p[0] for p in coords]
             pz = [self.topology[p[0], p[1]] for p in coords]
-            self.path_line.append(self.topo_ax.plot(px, py, pz, label=path))
+            path_line.append(topo_ax.plot(px, py, pz, label=path))
         # Set labels
-        self.topo_ax.set_xlabel('X')
-        self.topo_ax.set_ylabel('Y')
-        self.topo_ax.set_zlabel('Altitude')
+        topo_ax.set_xlabel('X')
+        topo_ax.set_ylabel('Y')
+        topo_ax.set_zlabel('Altitude')
+        topo_ax.set_title('Topology')
+        if showfield:
+            field_ax.set_xlabel('X')
+            field_ax.set_ylabel('Y')
+            field_ax.set_title('Optimal Action Field')
         if len(paths) > 0:
-            plt.legend()
+            topo_ax.legend()
         # Display figure
         plt.show(block=True)
-        self.fig.clear()
+        fig.clear()
         plt.close(self.fig_num)
 
 

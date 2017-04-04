@@ -57,7 +57,7 @@ class FlagGenerator:
             A list of flag values in the same order as provided at instantiation.
         """
         if state >= self.states:
-            raise ValueError('State number exceeds possible states.')
+            raise ValueError('State number ' + str(state) + ' exceeds possible states.')
         current = 10        # basis of current state number
         state_f = state     # state in current basis, becomes list during loop
         flags = []          # state number translated into flags

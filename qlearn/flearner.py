@@ -3,19 +3,19 @@ This module implements the FLearner class. It uses temporal difference learning
 on a descrete state/action space to generate a function approximation value of
 each state in terms of state variables.
 
-    Value(state) = f(state)
+    Value(state, action) = f(state, action)
 
 Where 'f' is of the form:
 
-    f = weights . (a vector of state variable combinations)
+    f = weights . (a vector of state/action variable combinations)
 
-For example, if there are three state variables: x, y, z, the approximation
+For example, if there are three state/action variables: x, y, z, the approximation
 could be:
 
     f = weights . (x, y, z, x*y, x^2)
 
-Where FLearner learns weights. Here, the state space is 3D, but 'f' is 5D. The
-weights are learned using gradient descent, therefore learning process is very
+Where FLearner learns weights. Here, the state+action space is 3D, but 'f' is 5D.
+The weights are learned using gradient descent, therefore learning process is very
 sensitive to the learning rate.
 
 The learned weights are then used to generate a policy:
@@ -51,12 +51,13 @@ class FLearner(QLearner):
             e.g if the state is defined by x,y coords it can encode (x, y) into
             a row index for the rmatrix, and decode the index(state number) into
             (x, y).
+        actionconverter (FlagGenerator): Same as state converter but for actions.
         func (func): A linear function approximation for the value function.
             Returns the terms of the approximation as a numpy array. Signature:
-                func(state_vec)
-            Where state_vec is a list of state variables. The returned array
+                func(state_vec, action_vec)
+            Where [state|action]_vec is a list of state variables. The returned array
             can be of any length, where each element is a combination of the
-            state variables.
+            state/action variables.
         goal (list/tuple/set/array/function): Indices of goal states in rmatrix
             OR a function that accepts a state index and returns true if goal.
         tmatrix (ndarray/str): A transition matrix of [n states x m actions], OR
@@ -86,15 +87,41 @@ class FLearner(QLearner):
             instance.
     """
 
-    def __init__(self, rmatrix, stateconverter, func, goal,
+    def __init__(self, rmatrix, stateconverter, actionconverter, func, goal,
                  tmatrix=None, lrate=0.25, discount=1, exploration=0,
                  policy=0, mode=0, seed=None, **kwargs):
         self.stateconverter = stateconverter
-        self.funcdim = len(func(np.ones(len(stateconverter.flags))))
+        self.actionconverter = actionconverter
+        self._avecs = [actionconverter.decode(a) for a in range(actionconverter.states)]
+        self.funcdim = len(func(np.ones(len(stateconverter.flags)),
+                                np.ones(len(actionconverter.flags))))
         self.func = func
         self.weights = np.ones(self.funcdim)
         super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
                          policy, mode, seed, **kwargs)
+
+
+    def value(self, state):
+        """
+        The value of state i.e. the expected discounted rewards.
+
+        Args:
+            state (int/list/array): Index of current state in [r|q]matrix
+                (row index).
+
+        Returns:
+            A tuple of a float representing value and the action index.
+        """
+        if isinstance(state, (list, tuple, np.ndarray)):
+            state_ = self.stateconverter.encode(state)
+            vals = [np.dot(self.func(state, a), self.weights)\
+                    for a in self._avecs]
+        else:
+            state_ = self.stateconverter.decode(state)
+            vals = [np.dot(self.func(state_, a), self.weights)\
+                    for a in self._avecs]
+        action = np.argmax(vals)
+        return (vals[action], action)
 
 
     def error(self, state, action):
@@ -107,17 +134,19 @@ class FLearner(QLearner):
             action (int): Index of action to be taken from state (column index).
 
         Returns:
-           A tuple of a float containing the error and the next state index, and
-           the current state vector.
+           A tuple of a float containing the error, the next state index,
+           the current state vector, the current action vector.
         """
         next_state = self.next_state(state, action)
+        avec = self.actionconverter.decode(action)
         svec = self.stateconverter.decode(state)
         nsvec = self.stateconverter.decode(next_state)
         return (self.lrate*(self.reward(state, action, next_state)
-                            + self.discount*np.dot(self.weights, self.func(nsvec))
-                            - np.dot(self.func(svec), self.weights)),
+                            + self.discount*self.value(nsvec)[0]
+                            - np.dot(self.func(svec, avec), self.weights)),
                 next_state,
-                svec)
+                svec,
+                avec)
 
 
     def learn(self, coverage=1., ep_mode=None):
@@ -140,9 +169,8 @@ class FLearner(QLearner):
             while not self.goal(state) and limit < self.num_states:
                 limit += 1
                 action = self.next_action(state)
-                err, state, curr_svec = self.error(state, action)
-                self.weights += err * self.func(curr_svec)
-                # print(err)
+                err, state, curr_svec, curr_avec = self.error(state, action)
+                self.weights += err * self.func(curr_svec, curr_avec)
 
 
     def recommend(self, state):
@@ -161,13 +189,13 @@ class FLearner(QLearner):
         if self.random.rand() < self.exploration:
             # explore
             action = self.next_action(state)
-            err, _, curr_svec = self.error(state, action)
-            self.weights += err * self.func(curr_svec)
+            err, _, curr_svec, curr_avec = self.error(state, action)
+            self.weights += err * self.func(curr_svec, curr_avec)
             return action
         else:
             # exploit
-            svecs = [self.stateconverter.decode(s) for s in self.neighbours(state)]
-            vals = [np.dot(self.func(v), self.weights) for v in svecs]
+            svec = self.stateconverter.decode(state)
+            vals = [np.dot(self.func(svec, a), self.weights) for a in self._avecs]
             return np.argmax(vals)
 
 

@@ -161,18 +161,22 @@ def qlearner_testbench():
     # set up
     size = 10
     mode = 'dfs'
-    coverage = 0.5
-    exploration = 0.5
+    coverage = 1
+    exploration = 1
+    seed = 40000
+    lrate = 0.25
+    discount = 0.5
+    start = (0, 0)
 
     # Test 1: Instantiation
-    t = TestBench(size=size, seed=400000, mode=QLearner.ONLINE, wrap=True)
+    t = TestBench(size=size, seed=seed, mode=QLearner.ONLINE, wrap=True)
     assert t.learner.mode == QLearner.ONLINE, 'Args not passed on to QLearner.'
     t = TestBench(size=size, goals=[(1, 1), (2, 2), (2*size, size)])
     assert t.num_goals == 2, 'Goal states incorrectly processed.'
-    t = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False,\
-                    policy=QLearner.SOFTMAX)
-    t2 = TestBench(size=size, seed=400000, mode=QLearner.OFFLINE, wrap=False,\
-                    policy=QLearner.SOFTMAX)
+    t = TestBench(size=size, seed=seed, mode=QLearner.OFFLINE, wrap=False,\
+                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount)
+    t2 = TestBench(size=size, seed=seed, mode=QLearner.OFFLINE, wrap=False,\
+                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount)
 
     # Test 2: Qlearner compatibility
     t.learner.learn()
@@ -192,15 +196,14 @@ def qlearner_testbench():
     t.learner.reset()
     t.learner.learn(coverage=coverage, ep_mode=mode)
     t.learner.exploration = exploration
-    res = t.episode(start=(9, 9), interactive=False)
+    res = t.episode(start=start, interactive=False)
     assert res == t.path, 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'
-    res = t.shortest_path(point=(9, 9))
-    assert len(res) > 0 and res[0] == (9, 9), 'Shortest path not computed.'
+    res = t.shortest_path(point=start)
+    assert len(res) > 0 and res[0] == start, 'Shortest path not computed.'
 
     # Test 4: Visualization
-    t.show_topology(QPath=t.path, Dijkstra=res)
-    # t.episode(start=(8, 8), interactive=True)
+    t.show_topology(showfield=True, QPath=t.path, Dijkstra=res)
 
 
 #@test
@@ -210,14 +213,14 @@ def flearner_testbench():
     # Set up
     size = 10
     ep_mode = 'dfs'
-    coverage = 0.25
-    exploration = 0.5
+    coverage = 1
+    exploration = 0
     seed = 1000
-    lrate = 1e-3
-    discount = 0.5
+    lrate = 1e-4
+    discount = 1e-2
     start = (3, 4)
-    def func(s):
-        return np.array([s[0], s[1], s[1]**2, 1])
+    def func(s, a):
+        return np.array([s[0]*a[0], s[1]*a[1], s[0]**2, s[1]**2, a[0]**2, a[1]**2, 1])
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=FLearner, lrate=lrate,
@@ -232,7 +235,7 @@ def flearner_testbench():
     assert len(res) > 0 and res[0] == start, 'Shortest path not computed.'
 
     # Test 3: Visualization
-    t.show_topology(QPath=t.path, Dijkstra=res)
+    t.show_topology(showfield=True, QPath=t.path, Dijkstra=res)
 
 
 

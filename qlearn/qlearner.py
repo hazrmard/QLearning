@@ -297,6 +297,20 @@ class QLearner:
         return self.rmatrix[cstate, action]
 
 
+    def value(self, state):
+        """
+        The mean utility of all actions from the state.
+
+        Args:
+            state (int): Index of current state in [r|q]matrix (row index).
+
+        Returns:
+            A tuple of a float representing the value(state) and the action index.
+        """
+        action = np.argmax(self.qmatrix[state,:])
+        return (self.qmatrix[state, action], action)
+
+
     def utility(self, state, action):
         """
         Computes the utility of a proposed action from a state based on
