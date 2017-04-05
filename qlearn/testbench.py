@@ -259,7 +259,7 @@ class TestBench:
                            np.linspace(0, self.size-1, self.size))
         z = self.topology.reshape(x.shape)
         topo_ax.plot_surface(x, y, z, cmap='gist_earth')
-        # Plot value surface
+        # Plot optimal action field
         if showfield:
             vals, inds = list(zip(*[self.learner.value(s) for s in range(self.states)]))
             vals = np.abs((vals - min(vals)))
@@ -269,7 +269,8 @@ class TestBench:
             action_y = self.actions[inds][:, 0] * -vals
             action_x = self.actions[inds][:, 1] * vals
             field_ax.quiver(np.ravel(x), np.ravel(y),
-                            action_x, action_y, np.ravel(z), cmap='gist_earth')
+                            action_x, action_y, np.ravel(z), cmap='gist_earth',
+                            pivot='mid')
         # Plot goal states
         gc = [self.state2coord(i) for i in self.goals]  # goal coords
         gz = [self.topology[g[0], g[1]] for g in gc]
@@ -334,6 +335,7 @@ class TestBench:
             wrap (bool): Whether or not the topology wraps around boundaries.
                 Default = False.
         """
+        reward_lim = np.amax(self.topology) - np.amin(self.topology)
         tmatrix = np.zeros((self.states, len(self.actions)), dtype=int)
         rmatrix = np.zeros((self.states, len(self.actions)))
         # updating goal states
@@ -350,10 +352,17 @@ class TestBench:
                 else:
                     next_coord[next_coord < 0] = 0
                     next_coord[next_coord >= self.size] = self.size - 1
-                tmatrix[i, j] = self.coord2state(next_coord)
 
-                rmatrix[i, j] = self.topology[coords[0], coords[1]] \
-                                - self.topology[next_coord[0], next_coord[1]]
+                tmatrix[i, j] = self.coord2state(next_coord)
+                # Punish actions looping back i.e at edges when no wrap
+                if np.array_equal(next_coord, coords):
+                    rmatrix[i, j] = -reward_lim
+                # Reward actions leading to final goal
+                elif tmatrix[i, j] in goal_state:
+                    rmatrix[i, j] = reward_lim
+                else:
+                    rmatrix[i, j] = self.topology[coords[0], coords[1]] \
+                                    - self.topology[next_coord[0], next_coord[1]]
         self.tmatrix = tmatrix
         self.rmatrix = rmatrix
         if len(self.goals) == 0:

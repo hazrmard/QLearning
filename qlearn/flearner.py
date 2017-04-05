@@ -103,14 +103,16 @@ class FLearner(QLearner):
 
     def value(self, state):
         """
-        The value of state i.e. the expected discounted rewards.
+        The value of state i.e. the expected rewarts by being greedy with
+        the value function.
 
         Args:
             state (int/list/array): Index of current state in [r|q]matrix
                 (row index).
 
         Returns:
-            A tuple of a float representing value and the action index.
+            A tuple of a float representing value and the action index of the
+            next most rewarding action.
         """
         if isinstance(state, (list, tuple, np.ndarray)):
             state_ = self.stateconverter.encode(state)
@@ -194,9 +196,7 @@ class FLearner(QLearner):
             return action
         else:
             # exploit
-            svec = self.stateconverter.decode(state)
-            vals = [np.dot(self.func(svec, a), self.weights) for a in self._avecs]
-            return np.argmax(vals)
+            return self.value(state)[1]
 
 
     def reset(self):

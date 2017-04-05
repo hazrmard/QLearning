@@ -162,10 +162,10 @@ def qlearner_testbench():
     size = 10
     mode = 'dfs'
     coverage = 1
-    exploration = 1
+    exploration = 0
     seed = 40000
     lrate = 0.25
-    discount = 0.5
+    discount = 1
     start = (0, 0)
 
     # Test 1: Instantiation
@@ -203,10 +203,10 @@ def qlearner_testbench():
     assert len(res) > 0 and res[0] == start, 'Shortest path not computed.'
 
     # Test 4: Visualization
-    t.show_topology(showfield=True, QPath=t.path, Dijkstra=res)
+    t.show_topology(showfield=True, QPath=t.path)
 
 
-#@test
+@test
 def flearner_testbench():
     """Testing FLearner testbench"""
 

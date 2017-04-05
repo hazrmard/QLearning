@@ -305,9 +305,10 @@ class QLearner:
             state (int): Index of current state in [r|q]matrix (row index).
 
         Returns:
-            A tuple of a float representing the value(state) and the action index.
+            A tuple of a float representing the value(state) and the action index
+            for the most rewarding next action.
         """
-        action = np.argmax(self.qmatrix[state,:])
+        action = np.argmax(self.qmatrix[state, :])
         return (self.qmatrix[state, action], action)
 
 
