@@ -1,5 +1,5 @@
 """
-This module defines the QLearner class that learns behaviour from a Reward
+This module defines the QLearner class that learns behaviour from a reward
 matrix. The QLearer learns the action policy for the system by value
 iteration using off-policy temporal difference learning to populate the value
 matrix (Q-matrix) for each state/action pair.
@@ -7,6 +7,23 @@ matrix (Q-matrix) for each state/action pair.
     Value(state, action) = Q-Matrix[state, action]
 
     Policy(action | state) = max(Value(state, a) | a => all possible actions)
+
+All learners expose the following interface:
+
+* Instantiation with relevant parameters any any number of positional and
+    keyword arguments.
+* reward(state, action, next_state) which returns the reward for taking an
+    action from some state.
+* next_state(state, action) which returns the next state based on the current
+    state and action.
+* value(state) which returns the utility of a state and the following action
+    what leads to that utility.
+* learn() which runs over multiple episodes to populate a utility function
+    or matrix.
+* recommend(state) which recommends an action based on the learned values
+    depending on the exploration vs. exploitation setting of the learner.
+* reset() which returns the value function/matrix to its initial state while
+    keeping any learning parameters provided at instantiation.
 """
 
 import numpy as np

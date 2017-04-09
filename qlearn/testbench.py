@@ -339,7 +339,8 @@ class TestBench:
         tmatrix = np.zeros((self.states, len(self.actions)), dtype=int)
         rmatrix = np.zeros((self.states, len(self.actions)))
         # updating goal states
-        goal_state = np.argsort(np.ravel(self.topology))[:self.num_goals]
+        self.goals = np.argsort(np.ravel(self.topology))[:self.num_goals] \
+                     if len(self.goals) == 0 else self.goals
 
         for i in range(self.states):
             coords = self.state2coord(i)
@@ -358,15 +359,13 @@ class TestBench:
                 if np.array_equal(next_coord, coords):
                     rmatrix[i, j] = -reward_lim
                 # Reward actions leading to final goal
-                elif tmatrix[i, j] in goal_state:
+                elif tmatrix[i, j] in self.goals:
                     rmatrix[i, j] = reward_lim
                 else:
                     rmatrix[i, j] = self.topology[coords[0], coords[1]] \
                                     - self.topology[next_coord[0], next_coord[1]]
         self.tmatrix = tmatrix
         self.rmatrix = rmatrix
-        if len(self.goals) == 0:
-            self.goals = goal_state
 
 
     def coord2state(self, coord):

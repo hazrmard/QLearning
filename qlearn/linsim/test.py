@@ -106,14 +106,14 @@ def test_element_class():
     """Test element class for parsing definitions"""
 
     # Set up
-    def1 = "R100 N1 0 100k"
+    def1 = "R100 N1 0 10e5"
     def2 = "C25 N1 N2 25e-3"
     def3 = "G1 N3 n2 n1 0 table=(0 1e-1, 10 100)"
 
     # Test 1: checking definition parsing for default Element class
     elem = Element(definition=def1)
     assert [str(n) for n in elem.nodes] == ['n1', '0'], 'Nodes incorrectly parsed.'
-    assert elem.value == '100k', 'Value incorrectly parsed.'
+    assert elem.value == '10e5', 'Value incorrectly parsed.'
 
     elem = Element(definition=def2)
     assert [str(n) for n in elem.nodes] == ['n1', 'n2'], 'Nodes incorrectly parsed.'
@@ -224,7 +224,7 @@ def test_block_class():
     elems2 = "es1 s1 1 10\n" \
             + "es2 s2 3 10k\n" \
             + "es3 s2 s1 1M\n" \
-            + "x1 1 2 3 4 BLocK1"
+            + "x1 1=1 2=2 n3=3 n12=4 name=BLocK1"
 
     block_str = block1 + "\n\t" + elems1 + "\n" + block2 + "\n\n" + elems2
 
@@ -238,7 +238,7 @@ def test_block_class():
 
     # Test 1: Instantiation
     flatten_block = Block('test', ('1', 'n2', 'node3'), block_defs)
-    block = Block('test', ('1', 'n2', 'node3'), block_defs)
+    block = Block('test', ('n1', 'n2', 'node3'), block_defs)
 
     # Test 2: Parsing correctness
     assert len(block.blocks) == 2, 'Incorrect number of blocks detected.'
@@ -259,8 +259,11 @@ def test_block_class():
            'Top level block-string conv. failed.'
 
     # Test 3: Block manipulation
+    es3 = block.element('ES3')
+    assert es3 is not None and es3.name == 'es3', 'Element search failed.'
     block.add(elem)
     assert elem in block.elements, 'Element addition failed.'
+    assert elem.name in block.elements, 'Element membership by name failed.'
     assert elem in block.graph[elem.nodes[0]], 'Element addition failed.'
     assert elem in block.graph[elem.nodes[1]], 'Element addition failed.'
     try:
@@ -274,7 +277,7 @@ def test_block_class():
 
     block.add_block(block)
     assert block in block.blocks, 'Programmatic block addition failed.'
-    block.add(block.instance(name='xTest', nodes=('n5', 'n6', 'n7', 'n8')))
+    block.add(block.instance('xTest', n1='n5', n2='n6', node3='n7'))
     assert 'xtest' in block.elements, 'Programmatic instance addition failed.'
     block.remove_block(block)
     assert block.name not in block.blocks, 'Programmatic block removal failed.'
@@ -289,9 +292,9 @@ def test_block_class():
     flatten_block.flatten()
     assert 'x1' not in flatten_block.elements, 'Flattened block instance not removed.'
     assert len(flatten_block.blocks) == 0, 'Block defs not removed after flattening.'
-    assert 'block1_1_e1' in flatten_block.elements, 'Block instance not expanded.'
-    assert 'block1_1_e2' in flatten_block.elements, 'Block instance not expanded.'
-    assert 'block1_1_3' in flatten_block.graph, 'Internal block node not flattened.'
+    assert 'eblock1x1e1' in flatten_block.elements, 'Block instance not expanded.'
+    assert 'eblock1x1e2' in flatten_block.elements, 'Block instance not expanded.'
+    assert 'block1x13' in flatten_block.graph, 'Internal block node not flattened.'
 
 
 @test
@@ -301,13 +304,13 @@ def test_netlist_class():
     # Set up
     net = (".model sw sw0\n"
            ".subckt blah 1 2 3\n"
-           "r1 1 2 1e10\n"
-           "c1 1 3 1e-4\n"
+           "r1 1 2 10.0\n"
+           "c1 1 3 12.0\n"
            ".ends blah\n"
-           "C1 0 T1 1mF\n"
-           "R1 T1 N001 1k\n"
+           "C1 0 T1 1000.0\n"
+           "R1 T1 N001 1000.0\n"
            "G1 N001 0 T1 0 1 table=(0 0,0.1 1m)\n"
-           ".ic 0 15s 0 1m uic V(T1)=10V\n"
+           ".ic 0 15s 0 1000.0 uic V(T1)=10V\n"
            ".end")
     net_list = ['* Netlist: test'] + net.lower().split('\n')
     definition = net_list[:9] + net_list[10:]
@@ -335,16 +338,31 @@ def test_simulator_class():
 
     # Set up
     net = ('*Test Circuit',
+           '.subckt block in out',
+           'r1 in out 1e3',
+           'r2 in mid 5e2',
+           'c1 mid out 1e-6',
+           '.ends block',
            'C1 n1 0 1e-6',
-           'R1 n2 0 1e3',
+           'R1 n2 n3 1e3',
+           'xinstance in=n3 out=0 name=block',
            's1 n1 n2 n1 0 switch',
            '.ic V(n1)=10',
            '.model sw switch von=6 voff=5 ron=1 roff=1e6',
            '.end')
     ninstance = Netlist('Test', netlist=net)
 
+    def state_mux(netlist, state):
+        if state == 1:
+            netlist.short('n2', 'n3')   # n2 replaced by n3, r1 deleted
+        elif state == 2:
+            cap = netlist.element('s1') # reversing state = 1 changes
+            cap.nodes[1] = Node('n2')
+            netlist.add(Element(definition='R1 n2 n3 1e3'))
+        return netlist
+
     # Test 1: Instantiation and preprocessing
-    sim = Simulator(netlist=ninstance, timestep=1e-4)
+    sim = Simulator(env=ninstance, timestep=1e-4, state_mux=state_mux)
     assert sim.ic == {'v(n1)':'10'}, 'Initial conditions incorrectly parsed.'
 
     # Test 2: Running simulation
@@ -352,6 +370,11 @@ def test_simulator_class():
     res2 = sim.run(duration=1e-3)
     assert 'v(n1)' in res1, 'Incorrect keys in simulation result.'
     assert res1['v(n1)'] > res2['v(n1)'], 'Simulator state does not persist.'
+
+    # Test 3: Switching states and running simulation
+    for state in (1, 2):
+        sim.set_state(state)
+        sim.run(duration=1e-3)
 
 
 

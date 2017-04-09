@@ -31,6 +31,7 @@ class Element:
 
     Instance Attributes:
         nodes (list): List of Node objects.
+        passive_nodes (list): List of sensory nodes i.e. no current through.
         name (str): Element name.
         value (str/int): Element value.
         kwargs (dict): All param=value element properties.
@@ -64,6 +65,7 @@ class Element:
         self.args = [str(x).lower() for x in args]
         self.kwargs = {str(k).lower(): str(v).lower() for k, v in kwargs.items()}
         self.nodes = []
+        self.passive_nodes = []
         self.name = ''
         self.value = ''
         if len(definition):
@@ -78,9 +80,12 @@ class Element:
         """
         result = self.name
         nodes = ' '.join([str(n) for n in self.nodes])
+        pnodes = ' '.join([str(n) for n in self.passive_nodes])
         if len(nodes):
             result += ' ' + nodes
-        if len(self.value):
+        if len(pnodes):
+            result += ' ' + pnodes
+        if self.value:
             result += ' ' + str(self.value)
         if len(self.kwargs):
             result += ' ' + ' '.join([k+'='+v for k, v in self.kwargs.items()])
@@ -131,7 +136,7 @@ class Element:
                 self.kwargs[param] = value
 
 
-    def _verify(self, args):
+    def _verify(self, args, nodes=None):
         """
         Check args for correct length and prefix etc.
 
@@ -140,12 +145,15 @@ class Element:
                 <PREFIX><ID>, <NODE1>,..., <VALUE1>,..., [<PARAM1>=<VALUE1>]...
                 i.e. the sanitized definition string split on spaces, or at least
                 single value arguments list.
+            nodes (int): Number of nodes/passive nodes needed in definition. If
+                None, defaults to self.num_nodes.
 
         Raises:
             ValueError if prefix does not match element type.
             AttributeError if number of arguments less than expected.
         """
-        if len(args) < 1 + self.__class__.num_nodes + 1:
+        num_nodes = self.num_nodes if nodes is None else nodes
+        if len(args) < 1 + num_nodes + 1:
             # At least 1 name + num_nodes + 1 value
             raise AttributeError('Element definition does not have enough args.')
         if self.__class__.prefix.lower() != args[0][:len(self.__class__.prefix)]:
@@ -211,6 +219,7 @@ class Element:
 
         Returns:
             String of value elements joined by space.
+            Whatever this returns is assigned to self.value
         """
         return ' '.join(values)
 
@@ -225,7 +234,7 @@ class Element:
             pairs (dict): A dictionary of {PARAM: VALUE}
 
         Returns:
-            The unchanged pairs dictionary.
+            The unchanged pairs dictionary. Returned value must be a dict.
         """
         return pairs
 
@@ -236,7 +245,7 @@ class Element:
         definition string. Positional arguments are stored in self.args.
         Keyword arguments are stored in self.kwargs.
         """
-        self._verify(self.args)
+        self._verify(self.args + list(self.kwargs))
 
         self.name = self.args[0]
         self.nodes = self.args[1:1+self.num_nodes]
@@ -244,6 +253,58 @@ class Element:
         self.kwargs = self._parse_pairs(self.kwargs)
         # for key, value in self.kwargs.items():
         #     setattr(self, key, value)
+
+
+
+
+class Capacitor(Element):
+    prefix = 'c'
+    name = 'Capacitor'
+
+
+    def _parse_values(self, vals):
+        return float(vals[0])
+
+
+
+class Inductor(Element):
+    prefix = 'l'
+    name = 'Inductor'
+
+
+    def _parse_values(self, vals):
+        return float(vals[0])
+
+
+
+class Resistor(Element):
+    prefix = 'r'
+    name = 'Resistor'
+
+
+    def _parse_values(self, vals):
+        return float(vals[0])
+
+
+
+class Switch(Element):
+    prefix = 's'
+    name = 'Switch'
+
+
+    def _verify(self, args):
+        return super()._verify(args, nodes=4)
+
+
+    def _parse_values(self, vals):
+        self.passive_nodes = [Node(v) for v in vals[:-1]]
+        return vals[-1]
+
+
+
+class Transistor(Element):
+    prefix = 'm'
+    name = 'Transistor'
 
 
 
@@ -255,13 +316,17 @@ class BlockInstance(Element):
         block (Block): Block the element is an instance of.
 
         definition (str): A netlist definition of the instance. Of the form:
-            <PREFIX><ID> <NODE1>... [<VALUE1>...] [<PARAM1>=<VALUE1>...] <BLOCKNAME>
+
+            <PREFIX><ID> name=<BLOCKNAME> NODE_IN_BLOCK=NODE_IN_CIRCUIT ...
+
             Where <BLOCKNAME> is the name of the block being instantiated.
             <PREFIX> should be Block.prefix (which is 'x' by default.).
+            NODE_IN_BLOCK is the node name in the subcircuit definition and
+            NODE_IN_CIRCUIT is the corresponding node name in the circuit.
         OR:
-        *args: Any number of value arguments for the element. Of the form:
-            <PREFIX><ID>, <NODE1>,..., [<VALUE1>,...]
-        **kwargs: Any number of key=value pairs for the instance.
+        **kwargs: Any number of key=value pairs for the instance corresponding
+            to:
+                name=BLOCKNAME, NODE_IN_BLOCK=NODE_IN_CIRCUIT, ...
 
     Instance Attributes:
         block (Block): The Block instance this element is an instance of.
@@ -272,11 +337,7 @@ class BlockInstance(Element):
 
     def __init__(self, block, *args, **kwargs):
         self.block = block
-        kwargs['num_nodes'] = block.num_nodes
-        if 'definition' not in kwargs:
-            if args[-1] != block.name:
-                args = list(args)
-                args.append(block.name)
+        kwargs['num_nodes'] = self.block.num_nodes
         super().__init__(*args, **kwargs)
 
 

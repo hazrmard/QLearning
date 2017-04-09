@@ -140,26 +140,30 @@ class Block:
         for _, block in self.blocks.items():
             block.flatten()
         for instance in instances:
-            # remove prefix indicating block instance and replace by the name
-            # of the block being instantiated
-            name = instance.block.name + '_'\
-                    + instance.name[len(instance.__class__.prefix):]
+            # Create a name prefix to identify all flattened elements of a
+            # block instance.
+            # Note: name concatenation is w/o _ since ahkab does not accept _
+            # as valid element names.
+            name = instance.block.name + instance.name
             # a dict of nodes in prototype/block interface : instance interface
             node_map = {a:b for a, b in zip(instance.block.nodes, instance.nodes)}
             for elem in instance.block.elements:
                 # make a copy of all elements in prototype to replace instance
                 elemc = copy.deepcopy(elem)
-                elemc.name = name + '_' + elemc.name
+                # detect prefix, or assume one from element name
+                prefix = elemc.__class__.prefix if len(elemc.__class__.prefix)\
+                         else elemc.name[:1]
+                elemc.name = prefix + name + elemc.name
                 for node in elemc.nodes:
                     # if element node connects to prototype interface, rename it
                     # to match the node connecting to the instance's interface
                     # i.e. the external node the block/prototype is connected to
                     if node in node_map:
-                        node.name = node_map[node]
+                        node.name = str(node_map[node])
                     else:
                     # if node is internal to the prototype/block, then rename
                     # it by prepending the instance name to it.
-                        node.name = name + '_' + node.name
+                        node.name = name + str(node)
                 self.add(elemc)
             self.remove(instance)
         self.blocks = {}
@@ -239,7 +243,7 @@ class Block:
         for elem_def in definitions:
             if self.is_element(elem_def):
                 if self.is_block_instance(elem_def):
-                    block_name = elem_def[elem_def.rfind(' ')+1:]
+                    block_name = elem_def[elem_def.find('name=')+5:]
                     try:
                         block = self.blocks[block_name]
                     except KeyError:
@@ -251,22 +255,39 @@ class Block:
                 self.add(elem)
 
 
-    def instance(self, name, nodes, *args, **kwargs):
+    def element(self, name):
+        """
+        Finds the Element instance corresponding to element name in block.
+
+        Args:
+            name (str): The name of the element for e.g. r100.
+
+        Returns:
+            An Element object representing that element in current block.
+            If element not found returns None.
+        """
+        try:
+            return self.elements[self.elements.index(name.lower())]
+        except ValueError:
+            return None
+
+
+    def instance(self, instance_name, **nodes):
         """
         Creates an instance of current block as a BlockInstance object.
 
         Args:
-            name (str): Name of block. Should have an instance prefix e.g
-                xBlockName.
-            nodes (list/tuple): A list of Node objects/names the instance is
-                connected to.
-            *args: Positional arguments required by the instance.
-            **kwargs: Any key=value parameters needed by the instance.
+            instance_name (str): Name of block. Should have an instance prefix
+                e.g xBlockName.
+            **nodes: Any key=value parameters of the form:
+                    <NODE_IN_BLOCK>=<NODE_IN_CIRCUIT>, ...
+                Which describes what nodes in the block definition will go to
+                which nodes in the circuit itself.
 
         Returns:
             A BlockInstance object.
         """
-        return elements.BlockInstance(self, name, *nodes, *args, **kwargs)
+        return elements.BlockInstance(self, instance_name, name=self.name, **nodes)
 
 
     def add(self, elem):

@@ -24,6 +24,23 @@ The learned weights are then used to generate a policy:
 
 Having a function approximation instead of a matrix storing all of the state
 space saves on space at the cost of accuracy.
+
+All learners expose the following interface:
+
+* Instantiation with relevant parameters any any number of positional and
+    keyword arguments.
+* reward(state, action, next_state) which returns the reward for taking an
+    action from some state.
+* next_state(state, action) which returns the next state based on the current
+    state and action.
+* value(state) which returns the utility of a state and the following action
+    what leads to that utility.
+* learn() which runs over multiple episodes to populate a utility function
+    or matrix.
+* recommend(state) which recommends an action based on the learned values
+    depending on the exploration vs. exploitation setting of the learner.
+* reset() which returns the value function/matrix to its initial state while
+    keeping any learning parameters provided at instantiation.
 """
 
 
