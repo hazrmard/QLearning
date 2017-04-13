@@ -174,9 +174,9 @@ def qlearner_testbench():
     t = TestBench(size=size, goals=[(1, 1), (2, 2), (2*size, size)])
     assert t.num_goals == 2, 'Goal states incorrectly processed.'
     t = TestBench(size=size, seed=seed, mode=QLearner.OFFLINE, wrap=False,\
-                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount)
+                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount, steps=3)
     t2 = TestBench(size=size, seed=seed, mode=QLearner.OFFLINE, wrap=False,\
-                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount)
+                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount, steps=3)
 
     # Test 2: Qlearner compatibility
     t.learner.learn()
@@ -215,10 +215,10 @@ def flearner_testbench():
     ep_mode = 'dfs'
     coverage = 1
     exploration = 0
-    seed = 1000
+    seed = 40000
     lrate = 1e-4
     discount = 1e-2
-    start = (3, 4)
+    start = (0, 0)
     def func(s, a):
         return np.array([s[0]*a[0], s[1]*a[1], s[0]**2, s[1]**2, a[0]**2, a[1]**2, 1])
 

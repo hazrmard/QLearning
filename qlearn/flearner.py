@@ -93,6 +93,8 @@ class FLearner(QLearner):
         mode (int): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
             selection policy each learning episode. Online updates at every
             state/action inside the learning episode. Default OFFLINE (faster).
+        steps (int): Number of steps (state transitions) to look ahead to
+            calculate next estimate of value of state, action pair. Default=1.
         seed (int): A seed for all random number generation in instance. Default
             is None.
 
@@ -122,11 +124,9 @@ class FLearner(QLearner):
         """
         The value of state i.e. the expected rewarts by being greedy with
         the value function.
-
         Args:
             state (int/list/array): Index of current state in [r|q]matrix
                 (row index).
-
         Returns:
             A tuple of a float representing value and the action index of the
             next most rewarding action.
@@ -160,8 +160,9 @@ class FLearner(QLearner):
         avec = self.actionconverter.decode(action)
         svec = self.stateconverter.decode(state)
         nsvec = self.stateconverter.decode(next_state)
+        vals = [np.dot(self.func(nsvec, a), self.weights) for a in self._avecs]
         return (self.lrate*(self.reward(state, action, next_state)
-                            + self.discount*self.value(nsvec)[0]
+                            + self.discount*np.max(vals)
                             - np.dot(self.func(svec, avec), self.weights)),
                 next_state,
                 svec,
@@ -213,11 +214,14 @@ class FLearner(QLearner):
             return action
         else:
             # exploit
-            return self.value(state)[1]
+            state_ = self.stateconverter.decode(state)
+            vals = [np.dot(self.func(state_, a), self.weights)\
+                    for a in self._avecs]
+            return np.argmax(vals)
 
 
     def reset(self):
         """
         Resets weights to initial values.
         """
-        self.weights = np.zeros(self.funcdim)
+        self.weights = np.ones(self.funcdim)

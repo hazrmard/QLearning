@@ -36,6 +36,10 @@ class Simulator:
             modifies the netlist accordingly. Returns the modified netlist.
             Signature:
                 modified Netlist = state_mux(Netlist, state_vector)
+        state_demux (func): A function that gets simulation results and converts
+            them into a state variable vector to be returned. Signature:
+                state_vector = state_demux(Netlist, result)
+            Where 'result' is a dict of the form 'ic' (see ic in Attributes).
         ic (dict): See 'ic' in Instance Attributes. Default None, in which case
             initial conditions are parsed from the netlist.
 
@@ -52,11 +56,14 @@ class Simulator:
             Populated from .ic directives in the netlist.
     """
 
-    def __init__(self, env, timestep, state_mux, ic=None, *args, **kwargs):
+    def __init__(self, env, timestep, state_mux, state_demux=None, ic=None,
+                 *args, **kwargs):
         self.netlist = env
         self.circuit = self.preprocess(env)
         self.timestep = timestep
         self._state_mux = state_mux
+        self._state_demux = state_demux if state_demux is not None else\
+                            lambda x, y: y
         self.ic = self._parse_ic() if ic is None else ic
 
     @property
@@ -134,7 +141,7 @@ class Simulator:
             if key in self.ic:
                 res[key] = value
         self.ic = res
-        return res
+        return self._state_demux(self.netlist, res)
 
 
     def _update_elements(self):

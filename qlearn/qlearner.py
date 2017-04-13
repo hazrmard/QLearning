@@ -60,6 +60,8 @@ class QLearner:
         mode (int): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
             selection policy each learning episode. Online updates at every
             state/action inside the learning episode. Default OFFLINE (faster).
+        steps (int): Number of steps (state transitions) to look ahead to
+            calculate next estimate of value of state, action pair. Default=1.
         seed (int): A seed for all random number generation in instance. Default
             is None.
 
@@ -79,7 +81,7 @@ class QLearner:
     ONLINE = 1
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
-                 exploration=0, policy=0, mode=0, seed=None, **kwargs):
+                 exploration=0, policy=0, mode=0, steps=1, seed=None, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -91,6 +93,7 @@ class QLearner:
         self._goals = set()
         self._next_state = None
         self._policy = None
+        self.steps = steps
         self.lrate = lrate
         self.discount = discount
         self.exploration = exploration
@@ -317,10 +320,8 @@ class QLearner:
     def value(self, state):
         """
         The mean utility of all actions from the state.
-
         Args:
             state (int): Index of current state in [r|q]matrix (row index).
-
         Returns:
             A tuple of a float representing the value(state) and the action index
             for the most rewarding next action.
@@ -351,6 +352,85 @@ class QLearner:
 
 
     def learn(self, coverage=1., ep_mode=None):
+        """
+        Begins learning procedure over all (state, action) pairs. Populates the
+        Q matrix with utility for each (state, action).
+        Implements the n-step Tree Backup algorithm.
+        See Reinforcement Learning - an Introduction by Sutton/Barto (Ch. 7)
+
+        Args:
+            coverage (float): Fraction of total states to start episodes from.
+                Default=1 i.e. all state are covered by episodes().
+            ep_mode (str): Order in which to iterate through states. See
+                episodes() mode argument.
+        """
+        for state in self.episodes(coverage=coverage, mode=ep_mode):
+            if self.mode == QLearner.OFFLINE:
+                self._update_policy()
+
+            limit = 0       # tracks max number of iterations/episode
+            T = np.inf      # termination time (i.e. terminal state)
+            tau = 0         # time of state being updated
+            t = 0           # time from beginning of episode
+            delta = []      # error in current and next value estimate at time t
+            Q = []          # history of Q-values of taken actions
+            A = []          # history of actions taken for n-step lookahead
+            S = [state]     # history of states taken
+            pi = [1]        # history of action probabilities for each state
+
+            A.append(self.next_action(state))
+            Q.append(self.qmatrix[state, A[-1]])
+
+            # Loop from start of episode until the state before terminal state
+            while tau <= T-1 and limit < self.num_states:
+                # The algorithm looks n-steps ahead of the state in the episode
+                # being updated. If a terminal state comes before n-steps, it
+                # stops looking ahead.
+                if t < T:
+                    action = A[-1]
+                    state = S[-1]
+                    naction = self.next_action(state)
+                    nstate = self.next_state(state, action)
+
+                    A.append(naction)
+                    S.append(nstate)
+                    Q.append(self.qmatrix[nstate, naction])
+
+                    reward = self.reward(state, action, nstate)
+                    aprobs = self.a_probs(nstate)
+                    pi.append(aprobs[naction])
+
+                    if self.goal(nstate):   # Episode stops look-ahead by
+                        T = t + 1           # updating T from infinity to t+1
+                        delta.append(reward - self.qmatrix[state, action])
+                    else:
+                        delta.append(
+                            reward \
+                            + self.discount * np.dot(aprobs, self.qmatrix[nstate])\
+                            - self.qmatrix[state, action]
+                            )
+                # In the second step, the algorithm updates a state's value
+                # using the errors/rewards computed from the look-ahead.
+                tau = t - self.steps + 1
+                if tau >= 0:
+                    E = 1
+                    G = Q[tau]  # G is the expected return using n-step lookahead
+                                # For 1-step, G = R + discounted future value
+                    # Iterating from current state to n-steps ahead or terminal
+                    # state (whichever's closer), computes the n-step error
+                    # and updates q-matrix accordingly.
+                    for k in range(tau, min(tau + self.steps, T)):
+                        G += E * delta[k]
+                        E = self.discount * E * pi[k+1]
+                    self.qmatrix[S[tau], A[tau]] += self.lrate\
+                                        * (G - self.qmatrix[S[tau], A[tau]])
+                t += 1
+                limit += 1
+
+
+
+
+    def _learn(self, coverage=1., ep_mode=None):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
@@ -484,3 +564,28 @@ class QLearner:
             # each state. This is used to generate a random number based on the
             # relative utility of each action in a state.
             self._action_param['cumulative_utils'] = np.cumsum(self.qmatrix, axis=1)
+
+
+    def a_probs(self, state):
+        """
+        Calculates probability of taking all actions from a given state under an
+        action selection policy.
+
+        Args:
+            state (int): Index of state in [r|q] matrix.
+
+        Returns:
+            A numpy array of action probabilities.
+        """
+        if self.policy == QLearner.UNIFORM:
+            return np.ones(self.num_actions) / self.num_actions
+        elif self.policy == QLearner.GREEDY:
+            highest = np.argmax(self.qmatrix[state])
+            probs = np.ones(self.num_actions) * (1 - self._action_param['max_prob']) \
+                   / (self.num_actions - 1)
+            probs[highest] = self._action_param['max_prob']
+            return probs
+        elif self.policy == QLearner.SOFTMAX:
+            recentered = self.qmatrix[state] - np.min(self.qmatrix[state])
+            return recentered / (np.sum(recentered) + 1)
+
