@@ -21,7 +21,7 @@ class Directive(Element):
         definition (str): The netlist line containing the directive (see format
             above).
         OR:
-        *args, **kwargs: Positional any keyword arguments in the same order as
+        *args, **kwargs: Positional and keyword arguments in the same order as
             found in the directive string.
 
     Instance Attributes:

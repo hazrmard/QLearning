@@ -88,7 +88,7 @@ class Element:
         if self.value:
             result += ' ' + str(self.value)
         if len(self.kwargs):
-            result += ' ' + ' '.join([k+'='+v for k, v in self.kwargs.items()])
+            result += ' ' + ' '.join([str(k)+'='+str(v) for k, v in self.kwargs.items()])
         return result
 
 
@@ -125,18 +125,18 @@ class Element:
             returns nothing.
         """
         if value is None:
-            return self.kwargs.get(param)
+            return self.kwargs.get(param.lower())
         else:
             if value == '':
                 try:
-                    del self.kwargs[param]
+                    del self.kwargs[param.lower()]
                 except KeyError:
                     pass
             else:
-                self.kwargs[param] = value
+                self.kwargs[param.lower()] = value
 
 
-    def _verify(self, args, nodes=None):
+    def _verify(self, args, def_elements=None):
         """
         Check args for correct length and prefix etc.
 
@@ -145,19 +145,20 @@ class Element:
                 <PREFIX><ID>, <NODE1>,..., <VALUE1>,..., [<PARAM1>=<VALUE1>]...
                 i.e. the sanitized definition string split on spaces, or at least
                 single value arguments list.
-            nodes (int): Number of nodes/passive nodes needed in definition. If
-                None, defaults to self.num_nodes.
+            def_elements (int): Number of elements in definition. Includes name,
+                nodes, keyword pairs, value etc.
 
         Raises:
             ValueError if prefix does not match element type.
             AttributeError if number of arguments less than expected.
         """
-        num_nodes = self.num_nodes if nodes is None else nodes
-        if len(args) < 1 + num_nodes + 1:
+        num_parts = (1+self.num_nodes+1) if def_elements is None else def_elements
+        if len(args) < num_parts:
             # At least 1 name + num_nodes + 1 value
-            raise AttributeError('Element definition does not have enough args.')
+            raise AttributeError('Element:' + self.name + ' definition does not have'\
+                                + str(def_elements) +  ' args.')
         if self.__class__.prefix.lower() != args[0][:len(self.__class__.prefix)]:
-            raise ValueError('Incorrect element type.')
+            raise ValueError('Incorrect element type for this class.')
 
 
     def _sanitize(self, text):
@@ -221,7 +222,7 @@ class Element:
             String of value elements joined by space.
             Whatever this returns is assigned to self.value
         """
-        return ' '.join(values)
+        return ' '.join([str(v).lower() for v in values])
 
 
     def _parse_pairs(self, pairs):
@@ -236,7 +237,7 @@ class Element:
         Returns:
             The unchanged pairs dictionary. Returned value must be a dict.
         """
-        return pairs
+        return {k.lower():str(v).lower() for k, v in pairs.items()}
 
 
     def _parse_args(self):
@@ -258,6 +259,17 @@ class Element:
 
 
 class Capacitor(Element):
+    """
+    Represents a Capacitor element. Instantiation format:
+        C<NAME> <NODE1> <NODE2> <CAPACITANCE>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The capacitor name.
+        nodes (list): List of Node instances [positive, negative]
+        value (float): Capacitance
+    """
     prefix = 'c'
     name = 'Capacitor'
 
@@ -268,6 +280,17 @@ class Capacitor(Element):
 
 
 class Inductor(Element):
+    """
+    Represents an Inductor element. Instantiation format:
+        L<NAME> <NODE1> <NODE2> <INDUCTANCE>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The inductor name.
+        nodes (list): List of Node instances [positive, negative]
+        value (float): Inductance
+    """
     prefix = 'l'
     name = 'Inductor'
 
@@ -278,6 +301,17 @@ class Inductor(Element):
 
 
 class Resistor(Element):
+    """
+    Represents a Resistor element. Instantiation format:
+        R<NAME> <NODE1> <NODE2> <RESISTANCE>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The resistor name.
+        nodes (list): List of Node instances [positive, negative]
+        value (float): Resistance
+    """
     prefix = 'r'
     name = 'Resistor'
 
@@ -288,12 +322,24 @@ class Resistor(Element):
 
 
 class Switch(Element):
+    """
+    Represents a voltage controlled switch element. Instantiation format:
+        S<NAME> <NODE1> <NODE2> <SENSORNODE1> <SENSORNODE2> <MODEL>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The switch name.
+        nodes (list): List of Node instances [positive, negative]
+        passive_nodes (list): List of sensory Node instances [positive, negative]
+        value (string): Model name for switch
+    """
     prefix = 's'
     name = 'Switch'
 
 
-    def _verify(self, args):
-        return super()._verify(args, nodes=4)
+    def _verify(self, args, def_elements=6):
+        return super()._verify(args, def_elements)
 
 
     def _parse_values(self, vals):
@@ -302,9 +348,224 @@ class Switch(Element):
 
 
 
+class VoltageSource(Element):
+    """
+    Represents a voltage source element. Instantiation format:
+        V<NAME> <NODE1> <NODE2> [type=<TYPE> <PARAM>=<VALUE>...
+    Where the time function is either a predefined type=<TYPE> with parameters,
+    or a custom function provided as a keyword argument with signature:
+            voltage = FUNC(time)
+        V<NAME>, <NODE1>, <NODE2>, function=<FUNC/CALLABLE>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional/keyword arguments in the same order.
+
+    Attributes:
+        name (str): The source name.
+        nodes (list): List of Node instances [positive, negative].
+        function (func/callable): A custom voltage time varying function. Can be
+            a class instance with __call__ and __str__ defined.
+
+    Functions:
+        param(NAME): Returns value (str) of a keyword=value parameter.
+        param(NAME, VALUE): Sets value (str) of a keyword=value parameter.
+    """
+    prefix = 'v'
+    name = 'Voltage Source'
+
+    def __init__(self, *args, **kwargs):
+        self.function = kwargs.get('function')
+        if 'function' in kwargs:
+            del kwargs['function']
+        super().__init__(*args, **kwargs)
+
+
+    def __str__(self):
+        funcstr = ' ' + str(self.function) if self.function is not None else ''
+        return super().__str__() + funcstr
+
+
+    def _verify(self, args, def_elements=-1):
+        return super()._verify(args,\
+                def_elements=5 if self.function is None else 3)
+
+
+
+class CurrentSource(VoltageSource):
+    """
+    Represents a current source element. Instantiation format:
+        I<NAME> <NODE1> <NODE2> [type=<TYPE> <PARAM>=<VALUE>...
+    Where the time function is either a predefined type=<TYPE> with parameters,
+    or a custom function provided as a keyword argument with signature:
+            voltage = FUNC(time)
+        I<NAME>, <NODE1>, <NODE2>, function=<FUNC/CALLABLE>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional/keyword arguments in the same order.
+
+    Attributes:
+        name (str): The source name.
+        nodes (list): List of Node instances [positive, negative].
+        function (func/callable): A custom current time varying function. Can be
+            a class instance with __call__ and __str__ defined.
+
+    Functions:
+        param(NAME): Returns value (str) of a keyword=value parameter.
+        param(NAME, VALUE): Sets value (str) of a keyword=value parameter.
+    """
+    prefix = 'i'
+    name = 'Current Source'
+
+
+
+class VoltageControlledVoltageSource(Element):
+    """
+    Represents a voltage controlled voltage source. The voltage through source
+    is proportional to voltage across SENSORNODE[1|2] by a factor of ALPHA.
+    Instantiation format:
+        E<NAME> <NODE1> <NODE2> <SENSORNODE1> <SENSORNODE2> <ALPHA>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The element name.
+        nodes (list): List of Node instances [positive, negative].
+        passive_nodes (list): List of sensory Node instances [positive, negative].
+        value (float): Proportionality constant for dependent source.
+    """
+    prefix = 'e'
+    name = 'Voltage Controlled Voltage Source'
+
+    def _verify(self, args, def_elements=6):
+        return super()._verify(args, def_elements)
+
+
+    def _parse_values(self, vals):
+        self.passive_nodes = [Node(v) for v in vals[:-1]]
+        return float(vals[-1])
+
+
+
+class VoltageControlledCurrentSource(VoltageControlledVoltageSource):
+    """
+    Represents a voltage controlled current source. The current through source
+    is proportional to voltage across SENSORNODE[1|2] by a factor of ALPHA.
+    Instantiation format:
+        G<NAME> <NODE1> <NODE2> <SENSORNODE1> <SENSORNODE2> <ALPHA>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The element name.
+        nodes (list): List of Node instances [positive, negative].
+        passive_nodes (list): List of sensory Node instances [positive, negative].
+        value (float): Proportionality constant for dependent source.
+    """
+    prefix = 'g'
+    name = 'Voltage Controlled Current Source'
+
+
+
+class CurrentControlledVoltageSource(Element):
+    """
+    Represents a current controlled voltage source. The voltage through source
+    is proportional to current through SENSORELEMENT by a factor of ALPHA.
+    Instantiation format:
+        H<NAME> <NODE1> <NODE2> <SENSORELEMENT> <ALPHA>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The element name.
+        nodes (list): List of Node instances [positive, negative].
+        passive_nodes (list): List of sensory Node instances [positive, negative].
+        value (float): Proportionality constant for dependent source.
+    """
+    prefix = 'h'
+    name = 'Current Controlled Voltage Source'
+
+    def _verify(self, args, def_elements=5):
+        return super()._verify(args, def_elements)
+
+
+    def _parse_values(self, vals):
+        return (vals[-2], float(vals[-1]))
+
+
+
+class CurrentControlledCurrentSource(CurrentControlledVoltageSource):
+    """
+    Represents a current controlled current source. The current through source
+    is proportional to current through SENSORELEMENT by a factor of ALPHA.
+    Instantiation format:
+        H<NAME> <NODE1> <NODE2> <SENSORELEMENT> <ALPHA>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional arguments in the same order.
+
+    Attributes:
+        name (str): The element name.
+        nodes (list): List of Node instances [positive, negative].
+        passive_nodes (list): List of sensory Node instances [positive, negative].
+        value (float): Proportionality constant for dependent source.
+    """
+    prefix = 'f'
+    name = 'Current Controlled Current Source'
+
+
+
 class Transistor(Element):
+    """
+    Represents a MOS Transistor element. Instantiation format:
+        M<NAME> <DRAIN> <GATE> <SOURCE> <BULK> <MODEL> w=<WIDTH> l=<LENGTH>
+    Either provide the definition string to definition keyword, or instantiate
+    with positional/keyword arguments in the same order.
+
+    Attributes:
+        name (str): The source name.
+        nodes (list): List of Node instances [gate, drain, source, bulk].
+        value (str): The model name for the transistor.
+
+    Functions:
+        param(NAME): Returns value (str) of a keyword=value parameter.
+        param(NAME, VALUE): Sets value (str) of a keyword=value parameter.
+    """
     prefix = 'm'
     name = 'Transistor'
+    num_nodes = 4
+
+    def _verify(self, args, def_elements=8):
+        return super()._verify(args, def_elements)
+
+
+    def _parse_values(self, vals):
+        return vals[0]
+
+
+
+class Diode(Element):
+    """
+    Represents a MOS Transistor element. Instantiation format:
+        D<NAME> <NODE1> <NODE2> <MODEL> [<AREA=float> <T=float> <OFF=boolean>]
+    Either provide the definition string to definition keyword, or instantiate
+    with positional/keyword arguments in the same order.
+
+    Attributes:
+        name (str): The source name.
+        nodes (list): List of Node instances [positive, negative].
+        value (str): The model name for the transistor.
+
+    Functions:
+        param(NAME): Returns value (str) of a keyword=value parameter.
+        param(NAME, VALUE): Sets value (str) of a keyword=value parameter.
+    """
+    prefix = 'd'
+    name = 'Diode'
+    num_nodes = 2
+
+    def _verify(self, args, def_elements=4):
+        return super()._verify(args, def_elements)
+
+
+    def _parse_values(self, vals):
+        return vals[0]
 
 
 

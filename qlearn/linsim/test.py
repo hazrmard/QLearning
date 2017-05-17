@@ -5,9 +5,7 @@ Tests for the linsim package.
 import os
 try:
     from flags import FlagGenerator
-    from elements import Element
-    from elements import BlockInstance
-    from elements import ElementMux
+    from elements import *
     from directives import Directive
     from nodes import Node
     from blocks import Block
@@ -16,9 +14,7 @@ try:
     from system import System
 except ImportError:
     from .flags import FlagGenerator
-    from .elements import Element
-    from elements import BlockInstance
-    from .elements import ElementMux
+    from .elements import *
     from .directives import Directive
     from .nodes import Node
     from .blocks import Block
@@ -136,6 +132,48 @@ def test_element_class():
                         str(elem) == 't1 10 12 100 k2=2 k1=1',\
                         'Arg parsing failed.'
 
+    # Test 3: checking preset Element subclasses
+    r = 'r1 n1 0 1e4'
+    c = 'c1 n1 0 1e4'
+    l = 'l1 n1 0 1e4'
+    v1 = 'v1 n1 0 type=vdc vdc=10'
+    v2 = 'v2 n1 0 type=sin VO=10m VA=1.2 FREQ=500k TD=1n THETA=0'
+    v3 = 'v3 n1 0'
+    func = lambda t: 2*t
+    e = 'e1 n1 n2 sn1 sn2 10'
+    f = 'f1 n1 n2 elem1 10'
+    g = 'g1 n1 n2 sn1 sn2 10'
+    h = 'h1 n1 n2 elem1 10'
+    m = 'm1 n1 n2 n3 n4 model w=1 l=2'
+    d = 'd1 n1 n2 model AREA=1 T=1 OFF=False'
+
+    R = Resistor(definition=r)
+    C = Capacitor(definition=c)
+    L = Inductor(definition=l)
+    V1 = VoltageSource(definition=v1)
+    V2 = VoltageSource(definition=v2)
+    V3 = VoltageSource(definition=v3, function=func)
+    E = VoltageControlledVoltageSource(definition=e)
+    F = CurrentControlledCurrentSource(definition=f)
+    G = VoltageControlledCurrentSource(definition=g)
+    H = CurrentControlledVoltageSource(definition=h)
+    M = Transistor(definition=m)
+    D = Diode(definition=d)
+
+    assert R.value == 1e4, 'Resistor value not parsed.'
+    assert C.value == 1e4, 'Capacitor value not parsed.'
+    assert L.value == 1e4, 'Inductor value not parsed.'
+    assert V1.param('type') == 'vdc', 'Voltage source type not parsed.'
+    assert V1.param('vdc') == '10', 'Voltage source value not parsed.'
+    assert V2.param('va') == '1.2', 'Voltage source wave param not parsed.'
+    assert V3.param('function') is None and callable(V3.function), \
+            'Custom function not parsed'
+    assert E.value == 10., 'Dependent source alpha not parsed.'
+    assert F.value == ('elem1', 10.), 'Dependent source tuple not parsed.'
+    assert G.value == 10., 'Dependent source alpha not parsed.'
+    assert H.value == ('elem1', 10.), 'Dependent source tuple not parsed.'
+    assert M.param('w') == '1', 'Transistor param not parsed.'
+    assert D.param('off') == 'false', 'Diode boolean not parsed.'
 
 @test
 def test_directive_class():
@@ -207,23 +245,23 @@ def test_block_class():
     """Test block parsing"""
 
     # Set up
-    block1_def = ("E1 1 2 45\n"
-                  "E2 2 3 50")
+    block1_def = ("y1 1 2 45\n"
+                  "y2 2 3 50")
     block1 = ".subckt block1 1 2 n3 n12\n" \
              + block1_def + "\n" \
              + ".ends block1"
 
-    block2_def = ("e3 4 5 100\n"
-                  "e4 3 4 whatever")
+    block2_def = ("y3 4 5 100\n"
+                  "y4 3 4 whatever")
     block2 = ".subckt block2 1 2 n3 n12\n" \
                 + block2_def + "\n" \
                 ".ends block2"
 
-    elems1 = "e6 2 4 90\n" \
-            + "ELEM45 1 2 64"
-    elems2 = "es1 s1 1 10\n" \
-            + "es2 s2 3 10k\n" \
-            + "es3 s2 s1 1M\n" \
+    elems1 = "y6 2 4 90\n" \
+            + "yLEM45 1 2 64"
+    elems2 = "ys1 s1 1 10\n" \
+            + "ys2 s2 3 10k\n" \
+            + "ys3 s2 s1 1M\n" \
             + "x1 1=1 2=2 n3=3 n12=4 name=BLocK1"
 
     block_str = block1 + "\n\t" + elems1 + "\n" + block2 + "\n\n" + elems2
@@ -232,8 +270,8 @@ def test_block_class():
     block_repr2 = block2 + "\n" + block1 + "\n" + elems1 + "\n" + elems2
 
     block_defs = block_str.split('\n')
-    elem = Element(definition='EN1 4 new_node 324k')
-    elem_duplicate = Element(definition='E56 2 3 43k')
+    elem = Element(definition='yN1 4 new_node 324k')
+    elem_duplicate = Element(definition='y56 2 3 43k')
 
 
     # Test 1: Instantiation
@@ -259,8 +297,8 @@ def test_block_class():
            'Top level block-string conv. failed.'
 
     # Test 3: Block manipulation
-    es3 = block.element('ES3')
-    assert es3 is not None and es3.name == 'es3', 'Element search failed.'
+    es3 = block.element('yS3')
+    assert es3 is not None and es3.name == 'ys3', 'Element search failed.'
     block.add(elem)
     assert elem in block.elements, 'Element addition failed.'
     assert elem.name in block.elements, 'Element membership by name failed.'
@@ -285,15 +323,15 @@ def test_block_class():
 
     block.short('s2', 's1')
     assert 's2' not in block.graph, 'Shorted node not removed from block.'
-    assert 'es3' not in block.elements, 'Shorted elements not removed.'
+    assert 'ys3' not in block.elements, 'Shorted elements not removed.'
     assert len(block.graph['s1']) == 2, 'Incorrect element union after short.'
 
     # Test 5: block flattening
     flatten_block.flatten()
     assert 'x1' not in flatten_block.elements, 'Flattened block instance not removed.'
     assert len(flatten_block.blocks) == 0, 'Block defs not removed after flattening.'
-    assert 'eblock1x1e1' in flatten_block.elements, 'Block instance not expanded.'
-    assert 'eblock1x1e2' in flatten_block.elements, 'Block instance not expanded.'
+    assert 'yblock1x1y1' in flatten_block.elements, 'Block instance not expanded.'
+    assert 'yblock1x1y2' in flatten_block.elements, 'Block instance not expanded.'
     assert 'block1x13' in flatten_block.graph, 'Internal block node not flattened.'
 
 
@@ -309,7 +347,7 @@ def test_netlist_class():
            ".ends blah\n"
            "C1 0 T1 1000.0\n"
            "R1 T1 N001 1000.0\n"
-           "G1 N001 0 T1 0 1 table=(0 0,0.1 1m)\n"
+           "G1 N001 0 T1 0 5.0\n"
            ".ic 0 15s 0 1000.0 uic V(T1)=10V\n"
            ".end")
     net_list = ['* Netlist: test'] + net.lower().split('\n')
@@ -352,7 +390,7 @@ def test_simulator_class():
            '.end')
     ninstance = Netlist('Test', netlist=net)
 
-    def state_mux(netlist, state):
+    def state_mux(state, action, netlist):
         if state == 1:
             netlist.short('n2', 'n3')   # n2 replaced by n3, r1 deleted
         elif state == 2:
@@ -362,7 +400,7 @@ def test_simulator_class():
         return netlist
 
     # Test 1: Instantiation and preprocessing
-    sim = Simulator(env=ninstance, timestep=1e-4, state_mux=state_mux)
+    sim = Simulator(env=ninstance, timestep=1e-3, state_mux=state_mux)
     assert sim.ic == {'v(n1)':'10'}, 'Initial conditions incorrectly parsed.'
 
     # Test 2: Running simulation
@@ -373,7 +411,7 @@ def test_simulator_class():
 
     # Test 3: Switching states and running simulation
     for state in (1, 2):
-        sim.set_state(state)
+        sim.set_state(state, None)
         sim.run(duration=1e-3)
 
 
