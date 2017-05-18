@@ -25,6 +25,9 @@ The learned weights are then used to generate a policy:
 Having a function approximation instead of a matrix storing all of the state
 space saves on space at the cost of accuracy.
 
+Rewards and state transitions are stored descretely in matrices. For continuous
+systems (with descrete actions), see SLearner.
+
 All learners expose the following interface:
 
 * Instantiation with relevant parameters any any number of positional and
@@ -35,6 +38,8 @@ All learners expose the following interface:
     state and action.
 * value(state) which returns the utility of a state and the following action
     what leads to that utility.
+* qvalue(state, action) which returns value of a state-action pair, or an array
+    of values of all actions from a state if action is not specified.
 * learn() which runs over multiple episodes to populate a utility function
     or matrix.
 * recommend(state) which recommends an action based on the learned values
@@ -87,10 +92,10 @@ class FLearner(QLearner):
             to action selection policy, or exploiting already learned utilities
             to suggest max utility action. 1 means full exploration 0
             exploitation. 0.5 means half of each. Default is 0.
-        policy (int): The action selection policy. Used durung learning/
+        policy (str): The action selection policy. Used durung learning/
             exploration to randomly select actions from a state. One of
             QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default UNIFORM.
-        mode (int): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
+        mode (str): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
             selection policy each learning episode. Online updates at every
             state/action inside the learning episode. Default OFFLINE (faster).
         steps (int): Number of steps (state transitions) to look ahead to
@@ -108,31 +113,34 @@ class FLearner(QLearner):
 
     def __init__(self, rmatrix, stateconverter, actionconverter, func, goal,
                  tmatrix=None, lrate=0.25, discount=1, exploration=0,
-                 policy=0, mode=0, seed=None, **kwargs):
+                 policy='uniform', mode='offline', steps=1,
+                 seed=None, **kwargs):
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
-        self._avecs = [actionconverter.decode(a) for a in range(actionconverter.states)]
         self.funcdim = len(func(np.ones(len(stateconverter.flags)),
                                 np.ones(len(actionconverter.flags))))
         self.func = func
         self.weights = np.ones(self.funcdim)
         super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
-                         policy, mode, seed, **kwargs)
+                         policy, mode, steps, seed, **kwargs)
+        self._avecs = [actionconverter.decode(a) for a in range(actionconverter.states)]
 
 
     def value(self, state):
         """
-        The value of state i.e. the expected rewarts by being greedy with
+        The value of state i.e. the expected rewards by being greedy with
         the value function.
+
         Args:
             state (int/list/array): Index of current state in [r|q]matrix
                 (row index).
+
         Returns:
             A tuple of a float representing value and the action index of the
             next most rewarding action.
         """
         if isinstance(state, (list, tuple, np.ndarray)):
-            state_ = self.stateconverter.encode(state)
+            # state_ = self.stateconverter.encode(state)
             vals = [np.dot(self.func(state, a), self.weights)\
                     for a in self._avecs]
         else:
@@ -143,7 +151,43 @@ class FLearner(QLearner):
         return (vals[action], action)
 
 
-    def error(self, state, action):
+    def qvalue(self, state, action=None):
+        """
+        The q-value of state, action pair.
+
+        Args:
+            state (int): Index of current state in [r|q]matrix (row index).
+            action (int): Index of action to be taken from state (column index).
+
+        Returns:
+            The qvalue of state,action if action is specified. Else returns the
+            qvalues of all actions from a state (array).
+        """
+        svec = self.stateconverter.decode(state)
+        if action is not None:
+            avec = self.actionconverter.decode(action)
+            return np.dot(self.weights, self.func(svec, avec))
+        else:
+            return np.array([np.dot(self.func(svec, a), self.weights)\
+                    for a in self._avecs])
+
+
+    def _update(self, state, action, error):
+        """
+        Updates weights given state, action, and error in current and next
+        value estimate.
+
+        Args:
+            state (int): State number.
+            action (int): Action number.
+            error (float): Error term (current value - next estimate)
+        """
+        svec = self.stateconverter.decode(state)
+        avec = self.actionconverter.decode(action)
+        self.weights -= self.lrate * error * self.func(svec, avec)
+
+
+    def __error(self, state, action):
         """
         Returns the error in the last value estimate vs. the current value
         estimate using the function approximation.
@@ -161,15 +205,15 @@ class FLearner(QLearner):
         svec = self.stateconverter.decode(state)
         nsvec = self.stateconverter.decode(next_state)
         vals = [np.dot(self.func(nsvec, a), self.weights) for a in self._avecs]
-        return (self.lrate*(self.reward(state, action, next_state)
-                            + self.discount*np.max(vals)
-                            - np.dot(self.func(svec, avec), self.weights)),
+        return (-(self.reward(state, action, next_state)
+                  + self.discount*np.max(vals)
+                  - np.dot(self.func(svec, avec), self.weights)),
                 next_state,
                 svec,
                 avec)
 
 
-    def learn(self, coverage=1., ep_mode=None):
+    def __learn(self, coverage=1., ep_mode=None, state_action=()):
         """
         Updates weights for function approximation for state values over
         multiple episodes covering the state space.
@@ -179,45 +223,27 @@ class FLearner(QLearner):
                 Default=1 i.e. all state are covered by episodes().
             ep_mode (str): Order in which to iterate through states. See
                 episodes() mode argument.
+            OR
+            state_action (tuple): A tuple of state/action to learn from instead
+                of multiple episodes that go all the way to a terminal state.
+                Used by recommend() when learning from a single action.
         """
-        for state in self.episodes(coverage=coverage, mode=ep_mode):
-            limit = 0
+        episodes = [state_action[0]] if len(state_action) > 0 else\
+                            self.episodes(coverage=coverage, mode=ep_mode)
+        limit = 1 if len(state_action) > 0 else self.num_states
+
+        for state in episodes:
+            iterations = 0
             if self.mode == QLearner.OFFLINE:
                 self._update_policy()
             # The limit variable keeps the number of iterations in check. They
             # should not exceed the number of states in the system.
-            while not self.goal(state) and limit < self.num_states:
+            while not self.goal(state) and iterations < limit:
                 limit += 1
                 action = self.next_action(state)
                 err, state, curr_svec, curr_avec = self.error(state, action)
-                self.weights += err * self.func(curr_svec, curr_avec)
-
-
-    def recommend(self, state):
-        """
-        Recommends an action based on the learned q matrix and current state.
-        Must be called after learn(). Either recommends an exploratory action
-        or an action with the highest utility according to self.exploration
-        setting (1 to 0).
-
-        Args:
-            state (int): Index of current state in [r|q]matrix.
-
-        Returns:
-            Index of action to take (column) in [r|q]matrix.
-        """
-        if self.random.rand() < self.exploration:
-            # explore
-            action = self.next_action(state)
-            err, _, curr_svec, curr_avec = self.error(state, action)
-            self.weights += err * self.func(curr_svec, curr_avec)
-            return action
-        else:
-            # exploit
-            state_ = self.stateconverter.decode(state)
-            vals = [np.dot(self.func(state_, a), self.weights)\
-                    for a in self._avecs]
-            return np.argmax(vals)
+                # self.weights += err * self.func(curr_svec, curr_avec)
+                self._update(curr_svec, curr_avec, err)
 
 
     def reset(self):

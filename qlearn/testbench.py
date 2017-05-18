@@ -13,15 +13,19 @@ import matplotlib.pyplot as plt
 try:
     from qlearner import QLearner
     from flearner import FLearner
+    from slearner import SLearner
     from linsim import FlagGenerator
     from tb_utils import abs_cartesian
     from tb_utils import fault_algorithm
+    from tb_utils import create_sim_env
 except ImportError:
     from . import QLearner
     from . import FLearner
+    from . import SLearner
     from .linsim import FlagGenerator
     from .tb_utils import abs_cartesian
     from .tb_utils import fault_algorithm
+    from .tb_utils import create_sim_env
 
 
 
@@ -120,14 +124,29 @@ class TestBench:
         Attaches the appropriate learner to instance for testing.
         """
         if learner == FLearner:
-            flag = FlagGenerator(self.size, self.size)
-            action = FlagGenerator(2, 2)
+            sflags = FlagGenerator(self.size, self.size)
+            aflags = FlagGenerator(2, 2)
             self.learner = FLearner(rmatrix=self.rmatrix, goal=self.goals,
-                                    stateconverter=flag, actionconverter=action,
+                                    stateconverter=sflags, actionconverter=aflags,
                                     tmatrix=self.tmatrix, seed=self.seed, **kwargs)
         elif learner == QLearner:
             self.learner = QLearner(rmatrix=self.rmatrix, goal=self.goals,
                                     tmatrix=self.tmatrix, seed=self.seed, **kwargs)
+
+        elif learner == SLearner:
+            sflags = FlagGenerator(self.size, self.size)
+            aflags = FlagGenerator(2, 2)
+            sim = create_sim_env(self.size, self.random)
+            def reward(svec, avec, nstate):
+                action = aflags.encode(avec)
+                state = sflags.encode((round(svec[0]), round(svec[1])))
+                return self.rmatrix[state, action]
+            def goal(svec):
+                return self.coord2state((round(svec[0]), round(svec[1]))) in self.goals
+            self.learner = SLearner(reward=reward, simulator=sim, goal=goal,
+                                    stateconverter=sflags, actionconverter=aflags,
+                                    seed=self.seed, **kwargs)
+
         elif learner is None:
             self.learner = None
         else:
@@ -158,13 +177,21 @@ class TestBench:
             start = (self.random.randint(self.size), self.random.randint(self.size))
         self.path = [tuple(start)]
         limit = self.size**2 if limit <= 0 else limit
-        current = self.coord2state(start)
         iteration = 0
-        while current not in self.goals and iteration < limit:
-            iteration += 1
-            action = self.learner.recommend(current)
-            current = self.tmatrix[current, action]
-            self.path.append(self.state2coord(current))
+        try:                # for integer state representation
+            current = self.coord2state(start)
+            while not self.learner.goal(current) and iteration < limit:
+                iteration += 1
+                action = self.learner.recommend(current)
+                current = self.learner.next_state(current, action)
+                self.path.append(self.state2coord(current))
+        except TypeError:   # for vector state representation
+            current = start
+            while not self.learner.goal(current) and iteration < limit:
+                iteration += 1
+                action = self.learner.recommend(current)
+                current = self.learner.next_state(current, action)
+                self.path.append(current)
         if interactive:
             self.show_topology(QPath=self.path)
         else:
@@ -266,6 +293,10 @@ class TestBench:
             vals = vals / max(vals)
             inds = np.array(inds, dtype=int)
             # action_y multiplied by negative val since y-axes are inverted (bug)
+            try:
+                inds = [self.learner.actionconverter.encode(i) for i in inds]
+            except (TypeError, AttributeError):
+                pass
             action_y = self.actions[inds][:, 0] * -vals
             action_x = self.actions[inds][:, 1] * vals
             field_ax.quiver(np.ravel(x), np.ravel(y),
@@ -281,7 +312,7 @@ class TestBench:
         for path, coords in paths.items():
             px = [p[1] for p in coords]
             py = [p[0] for p in coords]
-            pz = [self.topology[p[0], p[1]] for p in coords]
+            pz = [self.topology[int(round(p[0])), int(round(p[1]))] for p in coords]
             path_line.append(topo_ax.plot(px, py, pz, label=path))
         # Set labels
         topo_ax.set_xlabel('X')

@@ -7,11 +7,13 @@ import numpy as np
 try:
     from qlearner import QLearner
     from flearner import FLearner
+    from slearner import SLearner
     from testbench import TestBench
     from linsim import FlagGenerator
 except ImportError:
     from .qlearner import QLearner
     from .flearner import FLearner
+    from .slearner import SLearner
     from .testbench import TestBench
     from .linsim import FlagGenerator
 
@@ -96,8 +98,8 @@ def test_instantiation():
     QLEARNER = temp
 
     # Test 6: episodes
-    l = set(temp.episodes(coverage=1.0))
-    assert l == set(range(len(temp.rmatrix))), 'Full episode coverage failed.'
+    l = set(temp.episodes(coverage=1.0, mode='bfs'))
+    assert l == set(range(temp.num_states)), 'Full episode coverage failed.'
 
     # Finalize
     os.remove('test.dat')
@@ -160,12 +162,13 @@ def qlearner_testbench():
     """
     # set up
     size = 10
-    mode = 'dfs'
-    coverage = 1
-    exploration = 0
+    mode = 'bfs'
+    coverage = 0.5
+    exploration = 0.25
     seed = 40000
     lrate = 0.25
     discount = 1
+    steps = 3
     start = (0, 0)
 
     # Test 1: Instantiation
@@ -174,9 +177,9 @@ def qlearner_testbench():
     t = TestBench(size=size, goals=[(1, 1), (2, 2), (2*size, size)])
     assert t.num_goals == 2, 'Goal states incorrectly processed.'
     t = TestBench(size=size, seed=seed, mode=QLearner.OFFLINE, wrap=False,\
-                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount, steps=3)
+                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount, steps=steps)
     t2 = TestBench(size=size, seed=seed, mode=QLearner.OFFLINE, wrap=False,\
-                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount, steps=3)
+                    policy=QLearner.SOFTMAX, lrate=lrate, discount=discount, steps=steps)
 
     # Test 2: Qlearner compatibility
     t.learner.learn()
@@ -212,19 +215,21 @@ def flearner_testbench():
 
     # Set up
     size = 10
-    ep_mode = 'dfs'
-    coverage = 1
-    exploration = 0
-    seed = 40000
-    lrate = 1e-4
+    ep_mode = 'bfs'
+    coverage = 0.25
+    exploration = 0.25
+    seed = 1000
+    lrate = 1e-1
     discount = 1e-2
-    start = (0, 0)
+    steps = 3
+    start = (3, 4)
     def func(s, a):
-        return np.array([s[0]*a[0], s[1]*a[1], s[0]**2, s[1]**2, a[0]**2, a[1]**2, 1])
+        return np.array([s[0]*a[0]/20, s[1]*a[1]/20, s[0]**2/100, s[1]**2/100,
+                         a[0]**2/4, a[1]**2/4, 1])
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=FLearner, lrate=lrate,
-                  discount=discount, exploration=exploration, func=func)
+                  discount=discount, exploration=exploration, func=func, steps=steps)
 
     # Test 2: F learning
     t.learner.learn(coverage=coverage, ep_mode=ep_mode)
@@ -237,6 +242,39 @@ def flearner_testbench():
     # Test 3: Visualization
     t.show_topology(showfield=True, QPath=t.path, Dijkstra=res)
 
+@test
+def slearner_testbench():
+    """Testing SLearner testbench"""
+
+    # Set up
+    size = 5
+    policy = SLearner.UNIFORM
+    coverage = 0.3
+    exploration = 0.25
+    seed = 1000
+    lrate = 1e-1
+    discount = 1e-2
+    steps = 3
+    start = (2, 2)
+    def func(s, a):
+        return np.array([s[0]*a[0]/20, s[1]*a[1]/20, s[0]**2/100, s[1]**2/100,
+                         a[0]**2/4, a[1]**2/4, 1])
+
+    # Test 1: Instantiation
+    t = TestBench(size=size, seed=seed, learner=SLearner, lrate=lrate, policy=policy,
+                  discount=discount, exploration=exploration, func=func, steps=steps)
+
+    # Test 2: S learning
+    t.learner.learn(coverage=coverage)
+    res = t.episode(start=start, interactive=False)
+    assert res == t.path, 'Returned list not equal to stored path.'
+    assert len(res) > 0, 'Episode path not computed.'
+    res = t.shortest_path(point=start)
+    assert len(res) > 0 and res[0] == start, 'Shortest path not computed.'
+
+    # # Test 3: Visualization
+    t.show_topology(showfield=True, QPath=t.path, Dijkstra=res)
+
 
 
 if __name__ == '__main__':
@@ -246,6 +284,7 @@ if __name__ == '__main__':
     test_online_learning()
     qlearner_testbench()
     flearner_testbench()
+    slearner_testbench()
 
     print('\n==========\n')
     print('Tests passed:\t' + str(TESTS_PASSED))

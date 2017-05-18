@@ -137,7 +137,7 @@ def test_element_class():
     c = 'c1 n1 0 1e4'
     l = 'l1 n1 0 1e4'
     v1 = 'v1 n1 0 type=vdc vdc=10'
-    v2 = 'v2 n1 0 type=sin VO=10m VA=1.2 FREQ=500k TD=1n THETA=0'
+    v2 = 'v2 n1 0 type=sin VO=10 VA=1.2 FREQ=500e3 TD=1e-9 THETA=0'
     v3 = 'v3 n1 0'
     func = lambda t: 2*t
     e = 'e1 n1 n2 sn1 sn2 10'
@@ -164,15 +164,15 @@ def test_element_class():
     assert C.value == 1e4, 'Capacitor value not parsed.'
     assert L.value == 1e4, 'Inductor value not parsed.'
     assert V1.param('type') == 'vdc', 'Voltage source type not parsed.'
-    assert V1.param('vdc') == '10', 'Voltage source value not parsed.'
-    assert V2.param('va') == '1.2', 'Voltage source wave param not parsed.'
+    assert V1.param('vdc') == 10., 'Voltage source value not parsed.'
+    assert V2.param('va') == 1.2, 'Voltage source wave param not parsed.'
     assert V3.param('function') is None and callable(V3.function), \
             'Custom function not parsed'
     assert E.value == 10., 'Dependent source alpha not parsed.'
     assert F.value == ('elem1', 10.), 'Dependent source tuple not parsed.'
     assert G.value == 10., 'Dependent source alpha not parsed.'
     assert H.value == ('elem1', 10.), 'Dependent source tuple not parsed.'
-    assert M.param('w') == '1', 'Transistor param not parsed.'
+    assert M.param('w') == 1., 'Transistor param not parsed.'
     assert D.param('off') == 'false', 'Diode boolean not parsed.'
 
 @test

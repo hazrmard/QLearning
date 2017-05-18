@@ -389,6 +389,11 @@ class VoltageSource(Element):
                 def_elements=5 if self.function is None else 3)
 
 
+    def _parse_pairs(self, pairs):
+        pairs = super()._parse_pairs(pairs)
+        return {k:float(v) if k != 'type' else v for k, v in pairs.items()}
+
+
 
 class CurrentSource(VoltageSource):
     """
@@ -539,10 +544,15 @@ class Transistor(Element):
         return vals[0]
 
 
+    def _parse_pairs(self, pairs):
+        pairs = super()._parse_pairs(pairs)
+        return {k:float(v) for k, v in pairs.items()}
+
+
 
 class Diode(Element):
     """
-    Represents a MOS Transistor element. Instantiation format:
+    Represents a Diode element. Instantiation format:
         D<NAME> <NODE1> <NODE2> <MODEL> [<AREA=float> <T=float> <OFF=boolean>]
     Either provide the definition string to definition keyword, or instantiate
     with positional/keyword arguments in the same order.
@@ -550,7 +560,7 @@ class Diode(Element):
     Attributes:
         name (str): The source name.
         nodes (list): List of Node instances [positive, negative].
-        value (str): The model name for the transistor.
+        value (str): The model name for the diode.
 
     Functions:
         param(NAME): Returns value (str) of a keyword=value parameter.

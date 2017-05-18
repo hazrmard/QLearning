@@ -1,12 +1,23 @@
 """
-This module defines the QLearner class that learns behaviour from a reward
-matrix. The QLearer learns the action policy for the system by value
-iteration using off-policy temporal difference learning to populate the value
-matrix (Q-matrix) for each state/action pair.
+This module defines the QLearner class that uses reinforcement learning on a
+descrete state space. It learns behaviour (i.e. policy) as a matrix storing
+the utility (q-value) of each state, action pair. The QLearer learns the action
+policy for the system using off-policy temporal difference learning.
 
     Value(state, action) = Q-Matrix[state, action]
 
     Policy(action | state) = max(Value(state, a) | a => all possible actions)
+
+The learning process can either be online or offline. In online learning, the
+action selection policy is updated every time a new value is computed. In offline
+learning, the policy updates after every episode (random state to terminal
+state). Offline learning is faster but takes more space.
+
+An action selection policy is how random actions are selected from each state
+during the learning process. Uniform selection gives each action an equal change
+of selection. Greedy selects the action with the hightest value for that state
+with a greater probability. Softmax policy picks actions with probability
+proportional to their value for that state.
 
 All learners expose the following interface:
 
@@ -18,6 +29,8 @@ All learners expose the following interface:
     state and action.
 * value(state) which returns the utility of a state and the following action
     what leads to that utility.
+* qvalue(state, action) which returns value of a state-action pair, or an array
+    of values of all actions from a state if action is not specified.
 * learn() which runs over multiple episodes to populate a utility function
     or matrix.
 * recommend(state) which recommends an action based on the learned values
@@ -54,10 +67,10 @@ class QLearner:
             to action selection policy, or exploiting already learned utilities
             to suggest max utility action. 1 means full exploration 0
             exploitation. 0.5 means half of each. Default is 0.
-        policy (int): The action selection policy. Used durung learning/
+        policy (str): The action selection policy. Used durung learning/
             exploration to randomly select actions from a state. One of
             QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default UNIFORM.
-        mode (int): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
+        mode (str): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
             selection policy each learning episode. Online updates at every
             state/action inside the learning episode. Default OFFLINE (faster).
         steps (int): Number of steps (state transitions) to look ahead to
@@ -73,15 +86,16 @@ class QLearner:
             instance.
     """
 
-    UNIFORM = 0
-    GREEDY = 1
-    SOFTMAX = 2
+    UNIFORM = 'uniform'
+    GREEDY = 'greedy'
+    SOFTMAX = 'softmax'
 
-    OFFLINE = 0
-    ONLINE = 1
+    OFFLINE = 'offline'
+    ONLINE = 'online'
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
-                 exploration=0, policy=0, mode=0, steps=1, seed=None, **kwargs):
+                 exploration=0, policy='uniform', mode='offline',
+                 steps=1, seed=None, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -97,12 +111,19 @@ class QLearner:
         self.lrate = lrate
         self.discount = discount
         self.exploration = exploration
-        self._action_param = {}   # helper parameter for GREEDY/SOFTMAX policies
+        self._action_param = {}     # helper parameter for GREEDY/SOFTMAX policies
+        self._avecs = []            # for subclasses using action vectors
 
         self.set_rq_matrix(rmatrix)
         self.set_transition_matrix(tmatrix)
         self.set_goal(goal)
         self.set_action_selection_policy(policy, mode, **kwargs)
+
+
+    def __str__(self):
+        return self.__class__.__name__\
+               + ', Policy: ' + self.policy\
+               + ', Mode: ' + self.mode
 
     @property
     def num_states(self):
@@ -115,14 +136,14 @@ class QLearner:
         return self.rmatrix.shape[1]
 
 
-    def set_action_selection_policy(self, policy, mode=0, **kwargs):
+    def set_action_selection_policy(self, policy, mode='offline', **kwargs):
         """
         Sets a policy for selecting subsequent actions while in a learning
         episode.
 
         Args:
-            policy (int): One of QLearner.[UNIFORM | GREEDY | SOFTMAX].
-            mode (int): One of QLearner.[OFFLINE | ONLINE]. Default OFFLINE.
+            policy (str): One of QLearner.[UNIFORM | GREEDY | SOFTMAX].
+            mode (str): One of QLearner.[OFFLINE | ONLINE]. Default OFFLINE.
             max_prob (float): Probability of choosing action with highest utility [0, 1).
         """
         self._action_param = {}
@@ -222,7 +243,7 @@ class QLearner:
                 Default= 1. Range [0, 1].
             mode (str): The order in which to loop through states. If 'bfs',
                 performs a Breadth  First Search around goal states.
-                Default=None (simply loops from 0 to number of states.
+                Default=None (random selection without replacement).
 
         Returns:
             A generator of of state indices.
@@ -247,13 +268,13 @@ class QLearner:
             # generate the remainder by randomly picking from the unvisited
             # states:
             if i < num:
-                choices = self.random.choice(np.arange(self.num_states)[enqueued],\
+                choices = self.random.choice(np.arange(self.num_states)[~enqueued],\
                                          size=num-i, replace=False)
                 for j in range(num-i):
                     yield choices[j]
         else:
             for i in range(num):
-                yield i
+                yield self.random.choice(self.num_states)
 
 
     def neighbours(self, state):
@@ -319,39 +340,38 @@ class QLearner:
 
     def value(self, state):
         """
-        The mean utility of all actions from the state.
+        The utility/value of a state.
+
         Args:
             state (int): Index of current state in [r|q]matrix (row index).
+
         Returns:
-            A tuple of a float representing the value(state) and the action index
-            for the most rewarding next action.
+            A tuple of a float representing the value(state/action) and the
+            action index for the most rewarding next action.
         """
         action = np.argmax(self.qmatrix[state, :])
         return (self.qmatrix[state, action], action)
 
 
-    def utility(self, state, action):
+    def qvalue(self, state, action=None):
         """
-        Computes the utility of a proposed action from a state based on
-        temporal difference learning.
+        The q-value of state, action pair.
 
         Args:
             state (int): Index of current state in [r|q]matrix (row index).
             action (int): Index of action to be taken from state (column index).
 
         Returns:
-            A tuple of a float containing the updated utility for
-            qmatrix(state, action) and the next state.
+            The qvalue of state,action if action is specified. Else returns the
+            qvalues of all actions from a state (array).
         """
-        next_state = self.next_state(state, action)
-        return (self.qmatrix[state, action] \
-                + self.lrate*(self.reward(state, action, next_state)
-                              + self.discount*np.max(self.qmatrix[next_state])
-                              - self.qmatrix[state, action]),
-                next_state)
+        if action is not None:
+            return self.qmatrix[state, action]
+        else:
+            return self.qmatrix[state]
 
 
-    def learn(self, coverage=1., ep_mode=None):
+    def learn(self, coverage=1., ep_mode=None, state_action=()):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
@@ -363,8 +383,15 @@ class QLearner:
                 Default=1 i.e. all state are covered by episodes().
             ep_mode (str): Order in which to iterate through states. See
                 episodes() mode argument.
+            OR
+            state_action (tuple): A tuple of state/action to learn from instead
+                of multiple episodes that go all the way to a terminal state.
+                Used by recommend() when learning from a single action.
         """
-        for state in self.episodes(coverage=coverage, mode=ep_mode):
+        episodes = [state_action[0]] if len(state_action) > 0 else\
+                    self.episodes(coverage=coverage, mode=ep_mode)
+
+        for state in episodes:
             if self.mode == QLearner.OFFLINE:
                 self._update_policy()
 
@@ -378,8 +405,13 @@ class QLearner:
             S = [state]     # history of states taken
             pi = [1]        # history of action probabilities for each state
 
-            A.append(self.next_action(state))
-            Q.append(self.qmatrix[state, A[-1]])
+            if len(state_action) > 0:
+                T = self.steps
+                A.append(state_action[1])
+            else:
+                A.append(self.next_action(state))
+
+            Q.append(self.qvalue(state, A[-1]))
 
             # Loop from start of episode until the state before terminal state
             while tau <= T-1 and limit < self.num_states:
@@ -387,71 +419,63 @@ class QLearner:
                 # being updated. If a terminal state comes before n-steps, it
                 # stops looking ahead.
                 if t < T:
-                    action = A[-1]
-                    state = S[-1]
-                    naction = self.next_action(state)
-                    nstate = self.next_state(state, action)
+                    action = A[-1]                          # current action
+                    state = S[-1]                           # current state
+                    naction = self.next_action(state)       # next action
+                    nstate = self.next_state(state, action) # next state
+                    cqvalue = self.qvalue(state, action)    # current Q-value
+                    nqvalue = self.qvalue(nstate, naction)  # next Q-value
 
                     A.append(naction)
                     S.append(nstate)
-                    Q.append(self.qmatrix[nstate, naction])
+                    Q.append(nqvalue)
 
                     reward = self.reward(state, action, nstate)
                     aprobs = self.a_probs(nstate)
-                    pi.append(aprobs[naction])
+                    # For QLearner subclasses with vector representation,
+                    # naction cannot be used as an index
+                    if isinstance(naction, (int, np.integer)):
+                        pi.append(aprobs[naction])
+                    else:
+                        pi.append(aprobs[self._avecs.index(naction)])
 
                     if self.goal(nstate):   # Episode stops look-ahead by
                         T = t + 1           # updating T from infinity to t+1
-                        delta.append(reward - self.qmatrix[state, action])
+                        delta.append(reward - cqvalue)
                     else:
                         delta.append(
                             reward \
-                            + self.discount * np.dot(aprobs, self.qmatrix[nstate])\
-                            - self.qmatrix[state, action]
+                            + self.discount * np.dot(aprobs, self.qvalue(nstate))\
+                            - cqvalue
                             )
                 # In the second step, the algorithm updates a state's value
                 # using the errors/rewards computed from the look-ahead.
-                tau = t - self.steps + 1
+                tau = t - self.steps + 1 # tau trails look-ahead (t) by n-steps
                 if tau >= 0:
                     E = 1
                     G = Q[tau]  # G is the expected return using n-step lookahead
-                                # For 1-step, G = R + discounted future value
                     # Iterating from current state to n-steps ahead or terminal
                     # state (whichever's closer), computes the n-step error
                     # and updates q-matrix accordingly.
                     for k in range(tau, min(tau + self.steps, T)):
                         G += E * delta[k]
                         E = self.discount * E * pi[k+1]
-                    self.qmatrix[S[tau], A[tau]] += self.lrate\
-                                        * (G - self.qmatrix[S[tau], A[tau]])
+                    self._update(S[tau], A[tau], self.qvalue(S[tau], A[tau]) - G)
                 t += 1
                 limit += 1
 
 
-
-
-    def _learn(self, coverage=1., ep_mode=None):
+    def _update(self, state, action, error):
         """
-        Begins learning procedure over all (state, action) pairs. Populates the
-        Q matrix with utility for each (state, action).
+        Given the state, action and the error in past and current value
+        estimate, updates the value function (qmatrix in this case).
 
         Args:
-            coverage (float): Fraction of total states to start episodes from.
-                Default=1 i.e. all state are covered by episodes().
-            ep_mode (str): Order in which to iterate through states. See
-                episodes() mode argument.
+            state (int): Index of state in [r|q]matrix.
+            action (int): Index of action in [r|q]matrix.
+            error (float): Error term (current value - new estimate)
         """
-        num_states = self.qmatrix.shape[0]
-        for state in self.episodes(coverage=coverage, mode=ep_mode):
-            limit = 0
-            if self.mode == QLearner.OFFLINE:
-                self._update_policy()
-            # The limit variable keeps the number of iterations in check. They
-            # should not exceed the number of states in the system.
-            while not self.goal(state) and limit < num_states:
-                limit += 1
-                action = self.next_action(state)
-                self.qmatrix[state, action], state = self.utility(state, action)
+        self.qmatrix[state, action] -= self.lrate * error
 
 
     def recommend(self, state):
@@ -470,11 +494,11 @@ class QLearner:
         if self.random.rand() < self.exploration:
             # explore
             action = self.next_action(state)
-            self.qmatrix[state, action], _ = self.utility(state, action)
+            self.learn(state_action=(state, action))
             return action
         else:
             # exploit
-            return np.argmax(self.qmatrix[state])
+            return self.value(state)[1]
 
 
     def reset(self):
@@ -514,7 +538,7 @@ class QLearner:
         """
         if self.mode == QLearner.ONLINE:
             if self.random.uniform() < self._action_param['max_prob']:
-                return np.argmax(self.qmatrix[state])
+                return np.argmax(self.qvalue(state))
             else:
                 return self.random.randint(self.num_actions)
         elif self.mode == QLearner.OFFLINE:
@@ -536,7 +560,7 @@ class QLearner:
             Index of action in [r|q]matrix.
         """
         if self.mode == QLearner.ONLINE:
-            cumulative_utils = np.cumsum(self.qmatrix[state])
+            cumulative_utils = np.cumsum(self.qvalue(state))
             random_num = self.random.rand() * cumulative_utils[-1]
             return np.searchsorted(cumulative_utils, random_num)
         elif self.mode == QLearner.OFFLINE:
@@ -546,7 +570,7 @@ class QLearner:
                                 random_num)
             # Searchsorted returns size of array if number is larger than
             # largest element. The conditional return addresses that.
-            return ind if ind < self.qmatrix.shape[1] else ind - 1
+            return ind if ind < self.num_actions else ind - 1
 
 
     def _update_policy(self):
@@ -558,12 +582,14 @@ class QLearner:
             # max_util_indices is a list of action indices (column #s) with the
             # highest q value for each state. Used to generate random numbers
             # based on the greedy policy.
-            self._action_param['max_util_indices'] = np.argmax(self.qmatrix, axis=1)
+            self._action_param['max_util_indices'] = np.argmax(
+                [self.qvalue(s) for s in range(self.num_states)], axis=1)
         elif self.policy == QLearner.SOFTMAX:
             # cumulative_utils is the cumulative sum of the action q values for
             # each state. This is used to generate a random number based on the
             # relative utility of each action in a state.
-            self._action_param['cumulative_utils'] = np.cumsum(self.qmatrix, axis=1)
+            self._action_param['cumulative_utils'] = np.cumsum(
+                [self.qvalue(s) for s in range(self.num_states)], axis=1)
 
 
     def a_probs(self, state):
@@ -572,7 +598,8 @@ class QLearner:
         action selection policy.
 
         Args:
-            state (int): Index of state in [r|q] matrix.
+            state (int/vector): Index of state in [r|q] matrix. Or if internal
+                state representation is as vector, then list/tuple/array.
 
         Returns:
             A numpy array of action probabilities.
@@ -580,12 +607,13 @@ class QLearner:
         if self.policy == QLearner.UNIFORM:
             return np.ones(self.num_actions) / self.num_actions
         elif self.policy == QLearner.GREEDY:
-            highest = np.argmax(self.qmatrix[state])
+            highest = np.argmax(self.qvalue(state))
             probs = np.ones(self.num_actions) * (1 - self._action_param['max_prob']) \
                    / (self.num_actions - 1)
             probs[highest] = self._action_param['max_prob']
             return probs
         elif self.policy == QLearner.SOFTMAX:
-            recentered = self.qmatrix[state] - np.min(self.qmatrix[state])
+            qvals = self.qvalue(state)
+            recentered = qvals - np.min(qvals)
             return recentered / (np.sum(recentered) + 1)
 

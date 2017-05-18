@@ -232,21 +232,22 @@ class Simulator:
                     element.n1 = node_dict[str(elem.nodes[0])]
                     element.n2 = node_dict[str(elem.nodes[1])]
                     stype = elem.param('type')
+                    kwargs = {k:v for k, v in elem.kwargs.items() if k != 'type'}
                     # setting up preset time functions
                     if stype not in (dc, ac):
                         element.is_timedependent = True
                         if stype == 'sin':
-                            element._time_function = ahkab.time_functions.sin(**elem.kwargs)
+                            element._time_function = ahkab.time_functions.sin(**kwargs)
                         elif stype == 'exp':
-                            element._time_function = ahkab.time_functions.exp(**elem.kwargs)
+                            element._time_function = ahkab.time_functions.exp(**kwargs)
                         elif stype == 'sffm':
-                            element._time_function = ahkab.time_functions.sffm(**elem.kwargs)
+                            element._time_function = ahkab.time_functions.sffm(**kwargs)
                         elif stype == 'am':
-                            element._time_function = ahkab.time_functions.am(**elem.kwargs)
+                            element._time_function = ahkab.time_functions.am(**kwargs)
                         elif stype == 'pwl':
-                            element._time_function = ahkab.time_functions.pwl(**elem.kwargs)
+                            element._time_function = ahkab.time_functions.pwl(**kwargs)
                         elif stype == 'pulse':
-                            element._time_function = ahkab.time_functions.pulse(**elem.kwargs)
+                            element._time_function = ahkab.time_functions.pulse(**kwargs)
                     # setting up custom time function
                     elif stype is None:
                         element.is_timedependent = True

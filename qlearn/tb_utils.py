@@ -4,7 +4,95 @@ TestBench class.
 """
 
 import numpy as np
+try:
+    from linsim import Netlist
+    from linsim import Simulator
+    from linsim import Directive
+except ImportError:
+    from .linsim import Netlist
+    from .linsim import Simulator
 
+
+def create_sim_env(size, random):
+    """
+    Creates the environment for SLearner. The environment is 2 capacitors
+    with an initial charge being fed by separate current sources. Each capacitor
+    has a feeding source and a draining source. The voltage level of the
+    capacitor current to ground is dictated by the connected current sources'
+    states.
+
+    The state vector is [c1 charge, c2 charge]
+    The action vector is one of [(0, 0), (0, 1), (1, 0), (1, 1)] corresponding
+    to the 4 action vectors in TestBench.actions.
+
+    Args:
+        size (int): A measure of the number of states. Corresponds to the number
+            of levels in each capacitor.
+        random (np.random.RandomState): A random number generator for consistent
+            terrain generation given the seed for TestBench.
+
+    Returns:
+        A Simulator instance.
+    """
+    TS = 1e-1   # timestep/duration for simulator
+    CAP = 1e-3  # capacitance
+    net = ("*SLearner circuit",
+           "C1 n1 0 " + str(CAP),
+           "I1 0 n1 type=idc idc=1e-2",
+           "I2 n1 0 type=idc idc=1e-2",
+           "C2 n2 0 " + str(CAP),
+           "I3 0 n1 type=idc idc=1e-2",
+           "I4 n2 0 type=idc idc=1e-2",
+           ".end")
+    netinstance = Netlist(name='slearner', netlist=net)
+
+    def state_mux(svec, avec, netlist):
+        ic = netlist.directives.get('ic')   # ret. None or list of ic directives
+        if ic is None:
+            ic = Directive('.ic')
+            netlist.add_directive(ic)
+        else:
+            ic = ic[0]                      # we'll only have 1 ic directive
+
+        ic.param('v(n1)', "{0:.2f}".format(svec[0]))
+        ic.param('v(n2)', "{0:.2f}".format(svec[1]))
+        # Testbench.actions defines the 4 action vectors in relation to
+        # movement on the topology. This mux emulates that so the first
+        # action in this environment corresponds to the first action in
+        # the topology. For e.g. if Testbench.actions[0] = [0, -1] i.e. move
+        # back in x direction [(y, x) coords], then the first avec = [0, 0]
+        # drains voltage from the first capacitor, while holding second
+        # capacitor constant.
+        if avec[0] == 0 and avec[1] == 0:
+            netlist.element('i1').param('idc', 0)
+            netlist.element('i2').param('idc', CAP / TS)
+            netlist.element('i3').param('idc', 0)
+            netlist.element('i4').param('idc', 0)
+        elif avec[0] == 0 and avec[1] == 1:
+            netlist.element('i1').param('idc', CAP / TS)
+            netlist.element('i2').param('idc', 0)
+            netlist.element('i3').param('idc', 0)
+            netlist.element('i4').param('idc', 0)
+        elif avec[0] == 1 and avec[1] == 0:
+            netlist.element('i1').param('idc', 0)
+            netlist.element('i2').param('idc', 0)
+            netlist.element('i3').param('idc', 0)
+            netlist.element('i4').param('idc', CAP / TS)
+        elif avec[0] == 1 and avec[1] == 1:
+            netlist.element('i1').param('idc', 0)
+            netlist.element('i2').param('idc', 0)
+            netlist.element('i3').param('idc', CAP / TS)
+            netlist.element('i4').param('idc', 0)
+        return netlist
+
+
+    def state_demux(prevsvec, prevavec, netlist, result):
+        return (np.clip(result['v(n1)'], 0, size-1),
+                np.clip(result['v(n2)'], 0, size-1))
+
+    sim = Simulator(env=netinstance, timestep=TS, state_mux=state_mux,
+                    state_demux=state_demux, ic=None)
+    return sim
 
 
 def fault_algorithm(iterations, size, random):

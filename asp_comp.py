@@ -24,10 +24,10 @@ QLearner class implements three policies:
 This script uses 2 metrics to compare performance:
 
 * Relative Path Length: The number of states traversed from point to goal by
-    each policy divided by the path length achieved by greedy search.
+    each policy divided by the path length achieved by exhaustive search.
 
 * Relative Average Path Height: The average height in the topology over the
-    policy path divided by the average topology height over the greedy path.
+    policy path divided by the average topology height over the exhaustive path.
 """
 
 import numpy as np

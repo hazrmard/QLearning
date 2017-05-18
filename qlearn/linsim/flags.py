@@ -5,6 +5,7 @@ flag combinations for use in the simulation (and vice versa).
 
 import math
 import numbers
+import numpy as np
 
 
 class FlagGenerator:
@@ -59,7 +60,7 @@ class FlagGenerator:
         if state >= self.states:
             raise ValueError('State number ' + str(state) + ' exceeds possible states.')
         current = 10        # basis of current state number
-        state_f = state     # state in current basis, becomes list during loop
+        state_f = int(state)# state in current basis, becomes list during loop
         flags = []          # state number translated into flags
         for flag_basis in reversed(self.flags):
             state_f = self.convert_basis(current, flag_basis, state_f)
@@ -80,13 +81,13 @@ class FlagGenerator:
         Returns:
             Integer state number in base 10.
         """
-        if len(flags) == 1 and isinstance(flags[0], (list, tuple)):
+        if len(flags) == 1 and isinstance(flags[0], (list, tuple, np.ndarray)):
             flags = flags[0]
         state = []
         for i in range(len(flags)-1):
-            state.append(flags[i])
+            state.append(int(flags[i]))
             state = self.convert_basis(self.flags[i], self.flags[i+1], state)
-        state.append(flags[-1])
+        state.append(int(flags[-1]))
         state = self.convert_basis(self.flags[-1], 10, state)
         # Since state is base 10 [0-9], list elements can be concatenated
         state = ''.join([str(i) for i in state])
