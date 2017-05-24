@@ -371,7 +371,7 @@ class QLearner:
             return self.qmatrix[state]
 
 
-    def learn(self, coverage=1., ep_mode=None, state_action=()):
+    def learn(self, coverage=1., ep_mode=None, state_action=(), verbose=False):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
@@ -383,6 +383,7 @@ class QLearner:
                 Default=1 i.e. all state are covered by episodes().
             ep_mode (str): Order in which to iterate through states. See
                 episodes() mode argument.
+            verbose (bool): Whether to print diagnostic messages.
             OR
             state_action (tuple): A tuple of state/action to learn from instead
                 of multiple episodes that go all the way to a terminal state.
@@ -391,7 +392,7 @@ class QLearner:
         episodes = [state_action[0]] if len(state_action) > 0 else\
                     self.episodes(coverage=coverage, mode=ep_mode)
 
-        for state in episodes:
+        for i, state in enumerate(episodes):
             if self.mode == QLearner.OFFLINE:
                 self._update_policy()
 
@@ -463,6 +464,18 @@ class QLearner:
                     self._update(S[tau], A[tau], self.qvalue(S[tau], A[tau]) - G)
                 t += 1
                 limit += 1
+
+            if verbose:
+                self.print_diagnostic((i+1) * 100 / (int(coverage * self.num_states)))
+        if verbose:
+            print()
+
+
+    def print_diagnostic(self, percent):
+        """
+        Prints a diagnostic message each learning episode.
+        """
+        print('\rEpisodes: %5d%% progress' % (percent,), end='')
 
 
     def _update(self, state, action, error):

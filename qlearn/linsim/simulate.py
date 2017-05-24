@@ -4,7 +4,7 @@ of a circuit. The simulator uses Ahkab library for calculations.
 
 All simulators expose the following interface:
 
-* Instantiation with the environment 'env'.
+* Instantiation with the environment 'env' and class-specific parameters.
 * run(duration, state, action): Which simulates the environment for 'duration'
     for a given 'state' after taking some 'action' and returns the new
     environment variables.
@@ -33,7 +33,8 @@ class Simulator:
 
     Args:
         env (Netlist): a Netlist instance defining the environment.
-        timestep (float): Interval between calculations during simulation.
+        timestep (float): Max interval between calculations during simulation.
+            Lower values are performance intensive.
         state_mux (func): A function that gets a vector of state variables and
             modifies the netlist accordingly. Returns the modified netlist.
             Signature:

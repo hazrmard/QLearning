@@ -272,6 +272,20 @@ class Block:
             return None
 
 
+    def elements_like(self, prefix):
+        """
+        Finds all Element instances with names starting with the provided
+        prefix string.
+
+        Args:
+            name (str): The prefix to match element name with.
+
+        Returns:
+            A list of Element instances.
+        """
+        return [e for e in self.elements if e.name.startswith(prefix.lower())]
+
+
     def instance(self, instance_name, **nodes):
         """
         Creates an instance of current block as a BlockInstance object.

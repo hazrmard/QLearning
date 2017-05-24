@@ -1,14 +1,7 @@
-try:
-    from netlist import Netlist
-    from simulate import Simulator
-    from system import System
-    from flags import FlagGenerator
-    from elements import *
-    from directives import Directive
-except ImportError:
-    from .netlist import Netlist
-    from .simulate import Simulator
-    from .system import System
-    from .flags import FlagGenerator
-    from .elements import *
-    from .directives import Directive
+from .netlist import Netlist
+from .blocks import Block
+from .simulate import Simulator
+from .system import System
+from .flags import FlagGenerator
+from .directives import Directive
+from .elements import *

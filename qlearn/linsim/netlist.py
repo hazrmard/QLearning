@@ -47,10 +47,11 @@ class Netlist(Block):
         self.path = path
         if len(path):
             netlist = self.read_netlist(self.path)
-        elif len(netlist) == 0:
-            raise AttributeError('Specify either netlist or path.')
-        netlist = self._sanitize('\n'.join(netlist)).split('\n')
-        self._parse_directives(netlist)
+        # elif len(netlist) == 0:
+        #     raise AttributeError('Specify either netlist or path.')
+        if len(netlist) > 0:
+            netlist = self._sanitize('\n'.join(netlist)).split('\n')
+            self._parse_directives(netlist)
         super().__init__(name=name, nodes=(), definition=netlist, sanitize=False,\
                             *args, **kwargs)
 

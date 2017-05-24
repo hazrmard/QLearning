@@ -59,11 +59,15 @@ def test_flag_generator():
 
     # Set up
     flags = [4, 3, 2]
+    flags2 = [[-1, 1], 2]
     states = 4 * 3 * 2
+    states2 = 3 * 2
 
     # Test 1: Instantiation
     gen = FlagGenerator(*flags)
+    gen2 = FlagGenerator(*flags2)
     assert gen.states == states, "Flag state calculation failed."
+    assert gen2.states == states2, "Flag state calculation failed."
 
     # Test 2: Basis conversion
     assert gen.convert_basis(10, 2, 5) == [0, 1, 0, 1], "Decimal to n-ary failed."
@@ -74,6 +78,8 @@ def test_flag_generator():
     # Test 3: Encoding and decoding
     assert gen.decode(12) == [2, 0, 0], 'Decoding failed.'
     assert gen.encode(*gen.decode(12)) == 12, 'Encoding decoding mismatch.'
+    assert gen2.decode(0) == [-1, 0], 'Decoding failed.'
+    assert gen2.encode(*gen2.decode(0)) == 0, 'Encoding decoding mismatch.'
 
 
 @test
@@ -333,6 +339,10 @@ def test_block_class():
     assert 'yblock1x1y1' in flatten_block.elements, 'Block instance not expanded.'
     assert 'yblock1x1y2' in flatten_block.elements, 'Block instance not expanded.'
     assert 'block1x13' in flatten_block.graph, 'Internal block node not flattened.'
+
+    # Test 6: block search
+    assert flatten_block.element('y6') == 'y6', 'Single element block retreival failed.'
+    assert len(flatten_block.elements_like('y')) == 7, 'Multiple element retreival failed.'
 
 
 @test

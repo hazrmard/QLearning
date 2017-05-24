@@ -251,3 +251,11 @@ class FLearner(QLearner):
         Resets weights to initial values.
         """
         self.weights = np.ones(self.funcdim)
+
+
+    def print_diagnostic(self, percent):
+        """
+        Prints a diagnostic message each learning episode.
+        """
+        print('\rEpisodes: %5d%% progress, w: ' % (percent,),
+              *['{0:9.2e}'.format(w) for w in self.weights], end='')

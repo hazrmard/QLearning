@@ -15,21 +15,32 @@ class FlagGenerator:
     decode a number into a unique combination of flags describing a system.
 
     Args:
-        flags: A a sequence of int arguments with the number of states possible
-            for each flag. For example: 2, 4. The first flag, will have 2
-            possible states: 0, 1. The second flag will have 4 states: 0, 1, 2,
-            3. Each flag must have at least 2 states.
+        flags: A a sequence of arguments describing the number of states possible
+            for each flag. For example:
+            * 2, 4. The first flag, will have 2 possible states: 0, 1. The
+            second flag will have 4 states: 0, 1, 2, 3.
+            * [-1, 1], 2. The first flag will have 3 states: -1, 0, 1. The second
+            flag will have 2 states: 0, 1.
 
     Instance Attributes:
-        flags (list): Stores flag sequence provided at instantiation.
+        flags (list): Stores number of states for each flag.
         states (int): Total number of states possible with the given flags.
     """
 
     def __init__(self, *flags):
         self._state = -1    # internal count of current state during for loops
-        self.flags = flags
+
+        self.bottom = [0] * len(flags)
+        self.flags = [0] * len(flags)
+        for i, flag in enumerate(flags):
+            if isinstance(flag, (tuple, list, np.ndarray)):
+                self.bottom[i] = flag[0]
+                self.flags[i] = flag[-1] - flag[0] + 1    # upper/lower inclusive
+            else:
+                self.flags[i] = int(flag)
+
         self.states = 1
-        for flag in flags:
+        for flag in self.flags:
             self.states *= flag
 
 
@@ -66,7 +77,7 @@ class FlagGenerator:
             state_f = self.convert_basis(current, flag_basis, state_f)
             flags.insert(0, state_f.pop())
             current = flag_basis
-        return flags
+        return [flags[i] + self.bottom[i] for i in range(len(flags))]
 
 
     def encode(self, *flags):
@@ -83,6 +94,7 @@ class FlagGenerator:
         """
         if len(flags) == 1 and isinstance(flags[0], (list, tuple, np.ndarray)):
             flags = flags[0]
+        flags = [flags[i] - self.bottom[i] for i in range(len(flags))]
         state = []
         for i in range(len(flags)-1):
             state.append(int(flags[i]))
