@@ -54,8 +54,8 @@ def create_sim_env(size, random):
         else:
             ic = ic[0]                      # we'll only have 1 ic directive
 
-        ic.param('v(n1)', "{0:.2f}".format(svec[0]))
-        ic.param('v(n2)', "{0:.2f}".format(svec[1]))
+        ic.param('v(n1)', svec[0])
+        ic.param('v(n2)', svec[1])
         # Testbench.actions defines the 4 action vectors in relation to
         # movement on the topology. This mux emulates that so the first
         # action in this environment corresponds to the first action in
