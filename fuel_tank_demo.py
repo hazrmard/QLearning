@@ -38,8 +38,8 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
     # where dt is the duration/timestep of the simulation. This 'I' value is used
     # when fuel pumps are on to simulate a 1V change in tank levels.
     capacitance = 1e-3
-    timestep = 1e-1
-    idc = capacitance / timestep
+    deltat = 1e-1
+    idc = capacitance / deltat
 
     # Creating the circuit describing the system
     system = Netlist('Fuel Tanks')
@@ -50,7 +50,7 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
         for j in range(i+1, num_tanks):
             num_pumps += 1
             system.add(elements.CurrentSource('i'+str(i)+str(j), 'n'+str(i), 'n'+str(j),
-                                              type='idc', idc=idc))
+                                              type='idc', idc=0))
 
     # Creating FlagGenerators describing the state/action vectors
     # A state is a num_tanks-length vector where the ith element is the level
@@ -92,7 +92,7 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
         return np.clip(svec, 0, tank_levels-1)
 
     # Creating the simulator to be used for learning
-    sim = Simulator(env=system, timestep=timestep, state_mux=state_mux,
+    sim = Simulator(env=system, timestep=deltat/10, state_mux=state_mux,
                     state_demux=state_demux)
 
     # Defining the reward function which penalizes imbalance in fuel tanks
@@ -104,7 +104,9 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
 
     # Defining the function approximation vector and the goal function
     def func(svec, avec):
-        return np.concatenate((svec, avec, [1]))
+        return np.concatenate((np.square(svec) / tank_levels**2,
+                               avec / (2*num_tanks),
+                               [1]))
 
     def goal(svec):
         return abs(reward(None, None, svec)) <= 1
@@ -112,13 +114,15 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
     # Creating the SLearner instance
     learner = SLearner(reward=reward, simulator=sim, stateconverter=fstate,
                        actionconverter=faction, func=func, goal=goal, steps=steps,
-                       lrate=lrate, discount=discount, exploration=exploration)
+                       lrate=lrate, discount=discount, exploration=exploration,
+                       duration=deltat)
     return learner
 
 
 
 def create_server(learner, initial):
     """
+    Sets up a Flask server to send system status in JSON format.
     """
     svec = initial
     app = flask.Flask('Demo')
@@ -138,23 +142,36 @@ if __name__ == '__main__':
     args.add_argument('-t', '--tanks', metavar='T', type=int, help="Number of tanks", default=2)
     args.add_argument('-n', '--num_levels', metavar='N', type=int, help="Number of levels per tank", default=5)
     args.add_argument('-c', '--coverage', metavar='C', type=float, help="Fraction of states to cover in learning", default=0.2)
-    args.add_argument('-r', '--rate', metavar='R', type=float, help="Learning rate", default=1e-2)
-    args.add_argument('-d', '--discount', metavar='D', type=float, help="Discount factor", default=0.75)
-    args.add_argument('-e', '--explore', metavar='E', type=float, help="Exploration while recommending actions", default=0.)
+    args.add_argument('-r', '--rate', metavar='R', type=float, help="Learning rate (0, 1]", default=1e-2)
+    args.add_argument('-d', '--discount', metavar='D', type=float, help="Discount factor (0, 1]", default=0.75)
+    args.add_argument('-e', '--explore', metavar='E', type=float, help="Exploration while recommending actions [0, 1]", default=0.)
     args.add_argument('-s', '--steps', metavar='S', type=int, help="Number of steps to look ahead during learning", default=1)
     args = args.parse_args()
 
     learner = create_system(args.tanks, args.num_levels, args.rate, args.discount, args.explore, args.steps)
     print('System Netlist:')
     print(learner.simulator.env)
-    print()
+    input('\nPress Enter to begin learning.')
     learner.learn(coverage=args.coverage, verbose=True)
 
-    svec = np.random.random_integers(0, args.num_levels-1, args.tanks)
+    # Setting up random initial state
+    svec = np.random.random(args.tanks) * (args.num_levels - 1)
+    avec = learner.next_action(svec)
+    if avec[0] != 0:
+        pump = learner.simulator.env.elements_like('i')[(avec[0] - 1) // 2].name
+        pump += ' ' + '->' if avec[0] % 2 == 0 else '<-'
+    else:
+        pump = 'All off'
     print('\nEnter "c" to exit loop.')
-    print('Tank Levels: ', *["%10.2f" % s for s in svec], end=' ')
+    print('Tank Levels: ', *["%10.2f" % s for s in svec], '\tAction: ' + pump, end=' ')
 
     while input() != 'c':
-        avec = learner.recommend(svec)
         svec = learner.next_state(svec, avec)
-        print('Tank Levels: ', *["%10.2f" % s for s in svec], end=' ')
+        avec = learner.recommend(svec)
+        if avec[0] != 0:
+            pump = learner.simulator.env.elements_like('i')[(avec[0] - 1) // 2].name
+            pump += ' ' + '->' if avec[0] % 2 == 0 else '<-'
+        else:
+            pump = 'All off'
+        # print('\n', learner.simulator.env)
+        print('Tank Levels: ', *["%10.2f" % s for s in svec], '\tAction: ' + pump, end=' ')

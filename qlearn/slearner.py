@@ -109,7 +109,7 @@ class SLearner(FLearner):
 
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
-        self._avecs = [avec for avec in self.actionconverter]
+        self._avecs = [np.array(avec) for avec in self.actionconverter]
         self.funcdim = len(func(np.ones(len(stateconverter.flags)),
                                 np.ones(len(actionconverter.flags))))
         self.weights = np.ones(self.funcdim)

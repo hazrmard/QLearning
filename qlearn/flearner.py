@@ -123,7 +123,7 @@ class FLearner(QLearner):
         self.weights = np.ones(self.funcdim)
         super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
                          policy, mode, steps, seed, **kwargs)
-        self._avecs = [actionconverter.decode(a) for a in range(actionconverter.states)]
+        self._avecs = [np.array(avec) for avec in self.actionconverter]
 
 
     def value(self, state):
