@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html style="height: 100%; width: 100%">
+    <head>
+        <script src="https://d3js.org/d3.v4.min.js"></script>
+    </head>
+    <body style="padding: 0px; margin: 0px; height: 100%; width: 100%">
+        <svg style="height: 100%; width: 100%"></svg>
+        <script>
+            var N = {{ N }};    // number of levels per tank/ max tank capacity+1
+            var T = {{ T }};    // number of tanks
+            var W = d3.select("svg")._groups[0][0].clientWidth;
+            var H = d3.select("svg")._groups[0][0].clientHeight;
+            var timeout = 1000;
+            var width = W / (2*T);
+            var height = H / 3;
+            var gapx = (W - (T * width)) / (T+1);
+            var gapy = height / 2;
+
+            var levelScale = d3.scaleLinear().domain([0, N-1]).range([0, height]).clamp(true);
+            var colourScale = d3.scaleLinear().domain([0, N-1]).range(["red", "blue"]).clamp(true);
+            
+            var text = d3.select("svg").append("text")
+                            .attr("x", W / 2)
+                            .attr("y", gapy/2)
+                            .attr("text-anchor", "middle")
+                            .attr("font-size", "25px");
+            var tanks = d3.select("svg").append("g")
+            var graph = d3.select("svg").append("g");
+            for (var i=0; i<T; i++) {
+                tanks.append("rect")
+                    .attr("x", gapx*(i+1) + width*i)
+                    .attr("y", gapy)
+                    .attr("width", width)
+                    .attr("height", height)
+                    .style("stroke", "black")
+                    .style("stroke-width", "3px")
+                    .style("fill", "none");
+                tanks.append("text")
+                    .attr("x", gapx*(i+1) + width*(i+0.5))
+                    .attr("y", gapy + height + 25)
+                    .attr("font-size", "25px")
+                    .attr("text-anchor", "middle")
+                    .text(i);
+                tanks.append("rect")
+                    .attr("class", "tank")
+                    .attr("x", gapx*(i+1) + width*i)
+                    .attr("y", gapy)
+                    .attr("width", width)
+                    .attr("height", height)
+                    .style("fill", "blue");
+            }
+
+            var update = function() {
+                d3.json('/status', function(data) {
+                    d3.selectAll(".tank")
+                        .data(data.levels)
+                        .transition()
+                            .duration(timeout / 2)
+                            .attr("y", function(d) {return gapy + height - levelScale(d)})
+                            .attr("height", levelScale)
+                            .style("fill", colourScale);
+                    text.text(data.action.length == 0 ? "" : (data.action[0] + " to " + data.action[1]));
+
+                    setTimeout(update, timeout);
+                });
+            }
+            update();
+        </script>
+    </body>
+</html>
