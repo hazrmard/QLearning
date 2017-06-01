@@ -115,7 +115,7 @@ class TestBench:
         # self.path_line = None
 
         self.create_topology(method)
-        self.generate_trg(wrap)
+        self.tmatrix, self.rmatrix, self.goals = self.generate_trg(wrap)
         self.set_up_learner(learner, **kwargs)
 
 
@@ -365,13 +365,16 @@ class TestBench:
         Args:
             wrap (bool): Whether or not the topology wraps around boundaries.
                 Default = False.
+
+        Returns:
+            A tuple of (transition matrix, reward matrix, and list of goal states)
         """
         reward_lim = np.amax(self.topology) - np.amin(self.topology)
         tmatrix = np.zeros((self.states, len(self.actions)), dtype=int)
         rmatrix = np.zeros((self.states, len(self.actions)))
         # updating goal states
-        self.goals = np.argsort(np.ravel(self.topology))[:self.num_goals] \
-                     if len(self.goals) == 0 else self.goals
+        goals = np.argsort(np.ravel(self.topology))[:self.num_goals] \
+                if len(self.goals) == 0 else self.goals
 
         for i in range(self.states):
             coords = self.state2coord(i)
@@ -390,13 +393,12 @@ class TestBench:
                 if np.array_equal(next_coord, coords):
                     rmatrix[i, j] = -reward_lim
                 # Reward actions leading to final goal
-                elif tmatrix[i, j] in self.goals:
+                elif tmatrix[i, j] in goals:
                     rmatrix[i, j] = reward_lim
                 else:
                     rmatrix[i, j] = self.topology[coords[0], coords[1]] \
                                     - self.topology[next_coord[0], next_coord[1]]
-        self.tmatrix = tmatrix
-        self.rmatrix = rmatrix
+        return (tmatrix, rmatrix, goals)
 
 
     def coord2state(self, coord):

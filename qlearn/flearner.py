@@ -115,15 +115,15 @@ class FLearner(QLearner):
                  tmatrix=None, lrate=0.25, discount=1, exploration=0,
                  policy='uniform', mode='offline', steps=1,
                  seed=None, **kwargs):
+        super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
+                         policy, mode, steps, seed, **kwargs)
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
         self.funcdim = len(func(np.ones(len(stateconverter.flags)),
                                 np.ones(len(actionconverter.flags))))
         self.func = func
         self.weights = np.ones(self.funcdim)
-        super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
-                         policy, mode, steps, seed, **kwargs)
-        self._avecs = [np.array(avec) for avec in self.actionconverter]
+        self._avecs = [avec for avec in self.actionconverter]
 
 
     def value(self, state):

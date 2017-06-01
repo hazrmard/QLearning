@@ -209,7 +209,7 @@ def qlearner_testbench():
     t.show_topology(showfield=True, QPath=t.path)
 
 
-@test
+#@test
 def flearner_testbench():
     """Testing FLearner testbench"""
 
