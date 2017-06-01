@@ -119,6 +119,9 @@ class QLearner:
         self.set_goal(goal)
         self.set_action_selection_policy(policy, mode, **kwargs)
 
+        self.actionconverter = None     # Here for subclasses
+        self.stateconverter = None
+
 
     def __str__(self):
         return self.__class__.__name__\
@@ -371,7 +374,8 @@ class QLearner:
             return self.qmatrix[state]
 
 
-    def learn(self, coverage=1., ep_mode=None, state_action=(), verbose=False):
+    def learn(self, episodes=None, coverage=1., ep_mode=None, state_action=(),
+              limit=-1, verbose=False):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
@@ -379,6 +383,8 @@ class QLearner:
         See Reinforcement Learning - an Introduction by Sutton/Barto (Ch. 7)
 
         Args:
+            episodes (list/generator): States to begin learning episodes from.
+                Defaults to self.episodes().
             coverage (float): Fraction of total states to start episodes from.
                 Default=1 i.e. all state are covered by episodes().
             ep_mode (str): Order in which to iterate through states. See
@@ -386,17 +392,21 @@ class QLearner:
             verbose (bool): Whether to print diagnostic messages.
             OR
             state_action (tuple): A tuple of state/action to learn from instead
-                of multiple episodes that go all the way to a terminal state.
-                Used by recommend() when learning from a single action.
+                of multiple episodes. Used by recommend() when learning from a
+                single action.
+
+            limit (int): Number of iterations allowed per episode. Defaults to
+                self.num_states
         """
-        episodes = [state_action[0]] if len(state_action) > 0 else\
+        episodes = episodes if episodes is not None else\
+                    [state_action[0]] if len(state_action) > 0 else\
                     self.episodes(coverage=coverage, mode=ep_mode)
+        limit = self.num_states if limit == -1 else limit
 
         for i, state in enumerate(episodes):
             if self.mode == QLearner.OFFLINE:
                 self._update_policy()
 
-            limit = 0       # tracks max number of iterations/episode
             T = np.inf      # termination time (i.e. terminal state)
             tau = 0         # time of state being updated
             t = 0           # time from beginning of episode
@@ -407,7 +417,7 @@ class QLearner:
             pi = [1]        # history of action probabilities for each state
 
             if len(state_action) > 0:
-                T = self.steps
+                # T = self.steps
                 A.append(state_action[1])
             else:
                 A.append(self.next_action(state))
@@ -415,7 +425,7 @@ class QLearner:
             Q.append(self.qvalue(state, A[-1]))
 
             # Loop from start of episode until the state before terminal state
-            while tau <= T-1 and limit < self.num_states:
+            while tau <= T-1 and t < limit:
                 # The algorithm looks n-steps ahead of the state in the episode
                 # being updated. If a terminal state comes before n-steps, it
                 # stops looking ahead.
@@ -438,7 +448,7 @@ class QLearner:
                     if isinstance(naction, (int, np.integer)):
                         pi.append(aprobs[naction])
                     else:
-                        pi.append(aprobs[self._avecs.index(naction)])
+                        pi.append(aprobs[self.actionconverter.encode(naction)])
 
                     if self.goal(nstate):   # Episode stops look-ahead by
                         T = t + 1           # updating T from infinity to t+1
@@ -463,7 +473,6 @@ class QLearner:
                         E = self.discount * E * pi[k+1]
                     self._update(S[tau], A[tau], self.qvalue(S[tau], A[tau]) - G)
                 t += 1
-                limit += 1
 
             if verbose:
                 self.print_diagnostic((i+1) * 100 / (int(coverage * self.num_states)))

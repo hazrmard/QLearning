@@ -149,7 +149,7 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
     def reward(svec, avec, nsvec):
         left = nsvec[:num_tanks // 2]                   # left tank levels
         right = nsvec[num_tanks // 2 + num_tanks % 2:]  # right tank levels
-        diff = [(i+1) * (left[i] - right[-i - 1]) for i in range(num_tanks // 2)]
+        diff = [(num_tanks // 2 - i) * (left[i] - right[-i - 1]) for i in range(num_tanks // 2)]
         return -abs(sum(diff))                          # net moment due to tanks
 
     # Defining the function approximation vector and the goal function
@@ -232,7 +232,7 @@ if __name__ == '__main__':
     args.add_argument('-n', '--num_levels', metavar='N', type=int, help="Number of levels per tank", default=5)
     args.add_argument('-c', '--coverage', metavar='C', type=float, help="Fraction of states to cover in learning", default=0.2)
     args.add_argument('-r', '--rate', metavar='R', type=float, help="Learning rate (0, 1]", default=1e-2)
-    args.add_argument('-d', '--discount', metavar='D', type=float, help="Discount factor (0, 1]", default=0.75)
+    args.add_argument('-d', '--discount', metavar='D', type=float, help="Discount factor (0, 1]", default=0.5)
     args.add_argument('-e', '--explore', metavar='E', type=float, help="Exploration while recommending actions [0, 1]", default=0.)
     args.add_argument('-s', '--steps', metavar='S', type=int, help="Number of steps to look ahead during learning", default=1)
     args.add_argument('-l', '--load', metavar='F', type=str, help="File to load learned policy from", default='')

@@ -242,7 +242,7 @@ def flearner_testbench():
     # Test 3: Visualization
     t.show_topology(showfield=True, QPath=t.path, Dijkstra=res)
 
-@test
+#@test
 def slearner_testbench():
     """Testing SLearner testbench"""
 
@@ -267,7 +267,7 @@ def slearner_testbench():
     # Test 2: S learning
     t.learner.learn(coverage=coverage)
     res = t.episode(start=start, interactive=False)
-    assert res == t.path, 'Returned list not equal to stored path.'
+    assert np.array_equal(res, t.path), 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'
     res = t.shortest_path(point=start)
     assert len(res) > 0 and res[0] == start, 'Shortest path not computed.'

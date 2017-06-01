@@ -3,6 +3,7 @@ Tests for the linsim package.
 """
 
 import os
+import numpy as np
 try:
     from flags import FlagGenerator
     from elements import *
@@ -11,7 +12,6 @@ try:
     from blocks import Block
     from netlist import Netlist
     from simulate import Simulator
-    from system import System
 except ImportError:
     from .flags import FlagGenerator
     from .elements import *
@@ -20,7 +20,6 @@ except ImportError:
     from .blocks import Block
     from .netlist import Netlist
     from .simulate import Simulator
-    from .system import System
 
 NUM_TESTS = 0
 TESTS_PASSED = 0
@@ -60,26 +59,32 @@ def test_flag_generator():
     # Set up
     flags = [4, 3, 2]
     flags2 = [[-1, 1], 2]
+    flags3 = [[-5, 20, 4]]
     states = 4 * 3 * 2
     states2 = 3 * 2
+    states3 = 20
 
     # Test 1: Instantiation
     gen = FlagGenerator(*flags)
     gen2 = FlagGenerator(*flags2)
+    gen3 = FlagGenerator(*flags3)
     assert gen.states == states, "Flag state calculation failed."
     assert gen2.states == states2, "Flag state calculation failed."
+    assert gen3.states == states3, "Flag state calculation failed."
 
     # Test 2: Basis conversion
-    assert gen.convert_basis(10, 2, 5) == [0, 1, 0, 1], "Decimal to n-ary failed."
-    assert gen.convert_basis(6, 10, (2, 4)) == [1, 6], "N-ary to decimal failed."
-    assert gen.convert_basis(2, 8, (1, 0, 1)) == [0, 5], "N-ary to n-ary failed."
-    assert gen.convert_basis(10, 2, [1, 0]) == [0, 1, 0, 1, 0], "10-ary to n-ary failed."
+    assert np.array_equal(gen.convert_basis(10, 2, 5), [0, 1, 0, 1]), "Decimal to n-ary failed."
+    assert np.array_equal(gen.convert_basis(6, 10, (2, 4)), [1, 6]), "N-ary to decimal failed."
+    assert np.array_equal(gen.convert_basis(2, 8, (1, 0, 1)), [0, 5]), "N-ary to n-ary failed."
+    assert np.array_equal(gen.convert_basis(10, 2, [1, 0]), [0, 1, 0, 1, 0]), "10-ary to n-ary failed."
 
     # Test 3: Encoding and decoding
-    assert gen.decode(12) == [2, 0, 0], 'Decoding failed.'
+    assert np.array_equal(gen.decode(12), [2, 0, 0]), 'Decoding failed.'
     assert gen.encode(*gen.decode(12)) == 12, 'Encoding decoding mismatch.'
-    assert gen2.decode(0) == [-1, 0], 'Decoding failed.'
+    assert np.array_equal(gen2.decode(0), [-1, 0]), 'Decoding failed.'
     assert gen2.encode(*gen2.decode(0)) == 0, 'Encoding decoding mismatch.'
+    assert np.array_equal(gen3.decode(1), [-4.5]), 'Decoding failed.'
+    assert gen3.encode(*gen3.decode(1)) == 1, 'Encoding decoding mismatch.'
 
 
 @test
