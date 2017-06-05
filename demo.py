@@ -228,27 +228,40 @@ def create_server(learner, T, N):
 if __name__ == '__main__':
     # Set up command-line arguments
     args = ArgumentParser()
-    args.add_argument('-t', '--tanks', metavar='T', type=int, help="Number of tanks", default=2)
-    args.add_argument('-n', '--num_levels', metavar='N', type=int, help="Number of levels per tank", default=5)
-    args.add_argument('-c', '--coverage', metavar='C', type=float, help="Fraction of states to cover in learning", default=0.2)
-    args.add_argument('-r', '--rate', metavar='R', type=float, help="Learning rate (0, 1]", default=1e-2)
-    args.add_argument('-d', '--discount', metavar='D', type=float, help="Discount factor (0, 1]", default=0.5)
-    args.add_argument('-e', '--explore', metavar='E', type=float, help="Exploration while recommending actions [0, 1]", default=0.)
-    args.add_argument('-s', '--steps', metavar='S', type=int, help="Number of steps to look ahead during learning", default=1)
-    args.add_argument('-l', '--load', metavar='F', type=str, help="File to load learned policy from", default='')
-    args.add_argument('-f', '--file', metavar='F', type=str, help="File to save learned policy to", default='')
-    args.add_argument('-x', '--server', action='store_true', help="Run server to visualize problem")
+    args.add_argument('-t', '--tanks', metavar='T', type=int,
+                      help="Number of tanks", default=2)
+    args.add_argument('-n', '--num_levels', metavar='N', type=int,
+                      help="Number of levels per tank", default=5)
+    args.add_argument('-c', '--coverage', metavar='C', type=float,
+                      help="Fraction of states to cover in learning", default=0.2)
+    args.add_argument('-r', '--rate', metavar='R', type=float,
+                      help="Learning rate (0, 1]", default=1e-2)
+    args.add_argument('-d', '--discount', metavar='D', type=float,
+                      help="Discount factor (0, 1]", default=0.5)
+    args.add_argument('-e', '--explore', metavar='E', type=float,
+                      help="Exploration while recommending actions [0, 1]", default=0.)
+    args.add_argument('-s', '--steps', metavar='S', type=int,
+                      help="Number of steps to look ahead during learning", default=1)
+    args.add_argument('-m', '--maxlimit', metavar='M', type=int,
+                      help="Number of steps at most in each episode", default=1)
+    args.add_argument('-l', '--load', metavar='F', type=str,
+                      help="File to load learned policy from", default='')
+    args.add_argument('-f', '--file', metavar='F', type=str,
+                      help="File to save learned policy to", default='')
+    args.add_argument('-x', '--server', action='store_true',
+                      help="Run server to visualize problem")
     args = args.parse_args()
 
     # Set up the learner environment
-    learner = create_system(args.tanks, args.num_levels, args.rate, args.discount, args.explore, args.steps)
+    learner = create_system(args.tanks, args.num_levels, args.rate, args.discount,
+                            args.explore, args.steps)
     print('System Netlist:')
     print(learner.simulator.env)
 
     # Loading weights or learning new policy
     if args.load == '':
         input('\nPress Enter to begin learning.')
-        learner.learn(coverage=args.coverage, verbose=True)
+        learner.learn(coverage=args.coverage, verbose=True, limit=args.maxlimit)
         if args.file != '':
             utils.save_matrix(learner.weights, args.file)
     else:

@@ -73,6 +73,8 @@ class QLearner:
         mode (str): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
             selection policy each learning episode. Online updates at every
             state/action inside the learning episode. Default OFFLINE (faster).
+        depth (int): Max number of iterations in each learning episode. Defaults
+            to number of states.
         steps (int): Number of steps (state transitions) to look ahead to
             calculate next estimate of value of state, action pair. Default=1.
         seed (int): A seed for all random number generation in instance. Default
@@ -94,7 +96,7 @@ class QLearner:
     ONLINE = 'online'
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
-                 exploration=0, policy='uniform', mode='offline',
+                 exploration=0, policy='uniform', mode='offline', depth=None,
                  steps=1, seed=None, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
@@ -107,6 +109,7 @@ class QLearner:
         self._goals = set()
         self._next_state = None
         self._policy = None
+        self.depth = depth
         self.steps = steps
         self.lrate = lrate
         self.discount = discount
@@ -188,6 +191,8 @@ class QLearner:
         else:
             raise TypeError('Either provide filename or ndarray for R matrix.')
         self.qmatrix = np.ones_like(self.rmatrix)
+        if self.depth is None:
+            self.depth = self.num_states
 
 
     def set_goal(self, goal):
@@ -401,7 +406,7 @@ class QLearner:
         episodes = episodes if episodes is not None else\
                     [state_action[0]] if len(state_action) > 0 else\
                     self.episodes(coverage=coverage, mode=ep_mode)
-        limit = self.num_states if limit == -1 else limit
+        limit = self.depth if limit == -1 else limit
 
         for i, state in enumerate(episodes):
             if self.mode == QLearner.OFFLINE:

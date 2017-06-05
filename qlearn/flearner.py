@@ -98,6 +98,8 @@ class FLearner(QLearner):
         mode (str): One of QLearner.[OFFLINE | ONLINE]. Offline updates action
             selection policy each learning episode. Online updates at every
             state/action inside the learning episode. Default OFFLINE (faster).
+        depth (int): Max number of iterations in each learning episode. Defaults
+            to number of states.
         steps (int): Number of steps (state transitions) to look ahead to
             calculate next estimate of value of state, action pair. Default=1.
         seed (int): A seed for all random number generation in instance. Default
@@ -113,10 +115,10 @@ class FLearner(QLearner):
 
     def __init__(self, rmatrix, stateconverter, actionconverter, func, goal,
                  tmatrix=None, lrate=0.25, discount=1, exploration=0,
-                 policy='uniform', mode='offline', steps=1,
+                 policy='uniform', mode='offline', depth=None, steps=1,
                  seed=None, **kwargs):
         super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
-                         policy, mode, steps, seed, **kwargs)
+                         policy, mode, depth, steps, seed, **kwargs)
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
         self.funcdim = len(func(np.ones(len(stateconverter.flags)),

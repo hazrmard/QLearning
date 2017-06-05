@@ -71,6 +71,8 @@ class SLearner(FLearner):
         policy (str): The action selection policy. Used durung learning/
             exploration to randomly select actions from a state. One of
             QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default UNIFORM.
+        depth (int): Max number of iterations in each learning episode. Defaults
+            to number of states in stateconverter.
         steps (int): Number of steps (state transitions) to look ahead to
             calculate next estimate of value of state, action pair. Default=1.
         seed (int): A seed for all random number generation in instance. Default
@@ -88,7 +90,7 @@ class SLearner(FLearner):
 
     def __init__(self, reward, simulator, stateconverter, actionconverter, func,
                  goal, lrate=0.25, discount=1, exploration=0, policy='uniform',
-                 steps=1, seed=None, duration=-1, **kwargs):
+                 depth=None, steps=1, seed=None, duration=-1, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -100,6 +102,7 @@ class SLearner(FLearner):
         self.lrate = lrate
         self.discount = discount
         self.exploration = exploration
+        self.depth = stateconverter.num_states if depth is None else depth
         self.steps = steps
 
         self.func = func
@@ -116,11 +119,11 @@ class SLearner(FLearner):
 
     @property
     def num_states(self):
-        return self.stateconverter.states
+        return self.stateconverter.num_states
 
     @property
     def num_actions(self):
-        return self.actionconverter.states
+        return self.actionconverter.num_states
 
 
     def set_goal(self, goal):
@@ -168,6 +171,19 @@ class SLearner(FLearner):
 
     def next_action(self, svec):
         return self._avecs[super().next_action(svec)]
+
+
+    def neighbours(self, svec):
+        """
+        Returns a list of state vectors adjacent to provided state.
+
+        Args:
+            svec (ndarray/list/tuple): The state vector.
+
+        Returns:
+            A list of adjacent state vectors.
+        """
+        return [self.next_state(svec, avec) for avec in self._avecs]
 
 
     def value(self, state):

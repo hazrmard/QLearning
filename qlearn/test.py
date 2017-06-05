@@ -209,7 +209,7 @@ def qlearner_testbench():
     t.show_topology(showfield=True, QPath=t.path)
 
 
-#@test
+@test
 def flearner_testbench():
     """Testing FLearner testbench"""
 
@@ -232,6 +232,7 @@ def flearner_testbench():
                   discount=discount, exploration=exploration, func=func, steps=steps)
 
     # Test 2: F learning
+    assert t.learner.depth == t.num_states, 'Learning depth not set.'
     t.learner.learn(coverage=coverage, ep_mode=ep_mode)
     res = t.episode(start=start, interactive=False)
     assert res == t.path, 'Returned list not equal to stored path.'
@@ -242,7 +243,7 @@ def flearner_testbench():
     # Test 3: Visualization
     t.show_topology(showfield=True, QPath=t.path, Dijkstra=res)
 
-#@test
+@test
 def slearner_testbench():
     """Testing SLearner testbench"""
 
@@ -265,6 +266,7 @@ def slearner_testbench():
                   discount=discount, exploration=exploration, func=func, steps=steps)
 
     # Test 2: S learning
+    assert t.learner.depth == t.num_states, 'Learning depth not set.'
     t.learner.learn(coverage=coverage)
     res = t.episode(start=start, interactive=False)
     assert np.array_equal(res, t.path), 'Returned list not equal to stored path.'

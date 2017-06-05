@@ -68,9 +68,9 @@ def test_flag_generator():
     gen = FlagGenerator(*flags)
     gen2 = FlagGenerator(*flags2)
     gen3 = FlagGenerator(*flags3)
-    assert gen.states == states, "Flag state calculation failed."
-    assert gen2.states == states2, "Flag state calculation failed."
-    assert gen3.states == states3, "Flag state calculation failed."
+    assert gen.num_states == states, "Flag state calculation failed."
+    assert gen2.num_states == states2, "Flag state calculation failed."
+    assert gen3.num_states == states3, "Flag state calculation failed."
 
     # Test 2: Basis conversion
     assert np.array_equal(gen.convert_basis(10, 2, 5), [0, 1, 0, 1]), "Decimal to n-ary failed."

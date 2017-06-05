@@ -25,7 +25,7 @@ class FlagGenerator:
 
     Instance Attributes:
         flags (list): Stores number of states for each flag.
-        states (int): Total number of states possible with the given flags.
+        num_states (int): Total number of states possible with the given flags.
     """
 
     def __init__(self, *flags):
@@ -45,9 +45,9 @@ class FlagGenerator:
             else:
                 self.flags[i] = int(flag)
 
-        self.states = 1
+        self.num_states = 1
         for flag in self.flags:
-            self.states *= flag
+            self.num_states *= flag
 
 
     def __iter__(self):
@@ -56,7 +56,7 @@ class FlagGenerator:
 
 
     def __next__(self):
-        if self._state < self.states - 1:
+        if self._state < self.num_states - 1:
             self._state += 1
             return self.decode(self._state)
         else:
@@ -75,7 +75,7 @@ class FlagGenerator:
             A numpy array of flag values in the same order as provided at
             instantiation.
         """
-        if state >= self.states:
+        if state >= self.num_states:
             raise ValueError('State number ' + str(state) + ' exceeds possible states.')
         current = 10        # basis of current state number
         state_f = int(state)# state in current basis, becomes list during loop

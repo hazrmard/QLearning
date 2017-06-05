@@ -61,7 +61,7 @@ class TestBench:
             Heights are stored as [y, x] coordinates in line with the array
             indexing convention.
         size (int): Size of topology (length of side).
-        states (int): Number of possible states/positions in the system.
+        num_states (int): Number of possible states/positions in the system.
         actions (2D ndarray): An array where each row defines an action by a
             change in topology coordinates. For e.g. [1,0] is move-up.
         path (list): Sequence of coordinates (y, x) tuples taken on topology to
@@ -89,7 +89,7 @@ class TestBench:
         # qlearning params
         self.topology = np.zeros((size, size))
         self.size = size
-        self.states = size * size
+        self.num_states = size * size
         self.actions = np.array([[0, -1], [0, 1], [-1, 0], [1, 0]])
         self.path = []
         self.tmatrix = np.array([])
@@ -99,7 +99,7 @@ class TestBench:
             self.num_goals = abs(int(goals))
         elif isinstance(goals, (list, tuple, np.ndarray)):
             goals = [self.coord2state(g) for g in goals]
-            self.goals = [g for g in goals if g >= 0 and g < self.states]
+            self.goals = [g for g in goals if g >= 0 and g < self.num_states]
             self.num_goals = len(self.goals)
         else:
             self.goals = []
@@ -220,10 +220,10 @@ class TestBench:
         """
         # Set up initial distances, visited status, and target states.
         # All states intially loop back to themselves.
-        distances = np.array([(i, np.inf) for i in range(self.states)])
+        distances = np.array([(i, np.inf) for i in range(self.num_states)])
         distances[self.coord2state(point)][1] = 0
-        predecessors = np.arange(self.states)
-        unvisited = np.ones(self.states, dtype=bool)
+        predecessors = np.arange(self.num_states)
+        unvisited = np.ones(self.num_states, dtype=bool)
         goals_left = set(self.goals)
 
         # Explore closest state from source as long as there are targets/states left
@@ -288,7 +288,7 @@ class TestBench:
         topo_ax.plot_surface(x, y, z, cmap='gist_earth')
         # Plot optimal action field
         if showfield:
-            vals, inds = list(zip(*[self.learner.value(s) for s in range(self.states)]))
+            vals, inds = list(zip(*[self.learner.value(s) for s in range(self.num_states)]))
             vals = np.abs((vals - min(vals)))
             vals = vals / max(vals)
             inds = np.array(inds, dtype=int)
@@ -309,7 +309,7 @@ class TestBench:
         gy = [g[0] for g in gc]
         topo_ax.scatter(gx, gy, gz)
         # Plot path
-        for path, coords in paths.items():
+        for path, coords in sorted(paths.items(), key=lambda x: x[0]):
             px = [p[1] for p in coords]
             py = [p[0] for p in coords]
             pz = [self.topology[int(round(p[0])), int(round(p[1]))] for p in coords]
@@ -370,13 +370,13 @@ class TestBench:
             A tuple of (transition matrix, reward matrix, and list of goal states)
         """
         reward_lim = np.amax(self.topology) - np.amin(self.topology)
-        tmatrix = np.zeros((self.states, len(self.actions)), dtype=int)
-        rmatrix = np.zeros((self.states, len(self.actions)))
+        tmatrix = np.zeros((self.num_states, len(self.actions)), dtype=int)
+        rmatrix = np.zeros((self.num_states, len(self.actions)))
         # updating goal states
         goals = np.argsort(np.ravel(self.topology))[:self.num_goals] \
                 if len(self.goals) == 0 else self.goals
 
-        for i in range(self.states):
+        for i in range(self.num_states):
             coords = self.state2coord(i)
             # updating r and t matrices
             for j, action in enumerate(self.actions):
