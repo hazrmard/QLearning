@@ -223,13 +223,18 @@ def flearner_testbench():
     discount = 1e-2
     steps = 3
     start = (3, 4)
-    def func(s, a):
+    funcdim = 7
+    def func(s, a, w):
+        return np.dot(w, np.array([s[0]*a[0]/20, s[1]*a[1]/20, s[0]**2/100, s[1]**2/100,
+                                  a[0]**2/4, a[1]**2/4, 1]))
+    def dfunc(s, a, w):
         return np.array([s[0]*a[0]/20, s[1]*a[1]/20, s[0]**2/100, s[1]**2/100,
-                         a[0]**2/4, a[1]**2/4, 1])
+                                  a[0]**2/4, a[1]**2/4, 1])
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=FLearner, lrate=lrate,
-                  discount=discount, exploration=exploration, func=func, steps=steps)
+                  discount=discount, exploration=exploration, func=func,
+                  funcdim=funcdim, dfunc=dfunc, steps=steps)
 
     # Test 2: F learning
     assert t.learner.depth == t.num_states, 'Learning depth not set.'
@@ -257,13 +262,17 @@ def slearner_testbench():
     discount = 1e-2
     steps = 3
     start = (2, 2)
-    def func(s, a):
+    funcdim = 7
+    def dfunc(s, a, w):
         return np.array([s[0]*a[0]/20, s[1]*a[1]/20, s[0]**2/100, s[1]**2/100,
                          a[0]**2/4, a[1]**2/4, 1])
+    def func(s, a, w):
+        return np.dot(w, dfunc(s, a, w))
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=SLearner, lrate=lrate, policy=policy,
-                  discount=discount, exploration=exploration, func=func, steps=steps)
+                  discount=discount, exploration=exploration, func=func, funcdim=7,
+                  dfunc=None, steps=steps)
 
     # Test 2: S learning
     assert t.learner.depth == t.num_states, 'Learning depth not set.'

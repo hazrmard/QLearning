@@ -54,12 +54,16 @@ class SLearner(FLearner):
             a row index for the rmatrix, and decode the index(state number) into
             (x, y).
         actionconverter (FlagGenerator): Same as state converter but for actions.
-        func (func): A linear function approximation for the value function.
+        func (func): A function approximation for the value of a state/action.
             Returns the terms of the approximation as a numpy array. Signature:
-                func(state_vec, action_vec)
-            Where [state|action]_vec is a list of state variables. The returned array
+                func(state_vec, action_vec, weights_vec)
+            Where [state|action_weights]_vec are arrays. The returned array
             can be of any length, where each element is a combination of the
             state/action variables.
+        dfunc (func): The derivative of func with respect to weights. Defaults
+            to func / weights (i.e. linear function approximation).
+        funcdim (int): The dimension of the weights to learn. Defaults to
+            dimension of func.
         goal (list/tuple/set/array/function): Indices of goal states in rmatrix
             OR a function that accepts a state index and returns true if goal.
         lrate (float): Learning rate for q-learning.
@@ -88,9 +92,10 @@ class SLearner(FLearner):
             instance.
     """
 
-    def __init__(self, reward, simulator, stateconverter, actionconverter, func,
-                 goal, lrate=0.25, discount=1, exploration=0, policy='uniform',
-                 depth=None, steps=1, seed=None, duration=-1, **kwargs):
+    def __init__(self, reward, simulator, stateconverter, actionconverter, goal,
+                 func, funcdim, dfunc=None, lrate=0.25, discount=1, exploration=0,
+                 policy='uniform', depth=None, steps=1, seed=None, duration=-1,
+                 **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -105,7 +110,11 @@ class SLearner(FLearner):
         self.depth = stateconverter.num_states if depth is None else depth
         self.steps = steps
 
+        self.funcdim = funcdim
         self.func = func
+        self.dfunc = (lambda s, a, w: func(s, a, w) / w) if dfunc is None else dfunc
+        self.weights = np.ones(self.funcdim)
+
         self._reward = reward
         self.set_goal(goal)
         self.set_action_selection_policy(policy, mode=SLearner.ONLINE)
@@ -113,9 +122,6 @@ class SLearner(FLearner):
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
         self._avecs = [avec for avec in self.actionconverter]
-        self.funcdim = len(func(np.ones(len(stateconverter.flags)),
-                                np.ones(len(actionconverter.flags))))
-        self.weights = np.ones(self.funcdim)
 
     @property
     def num_states(self):
@@ -216,9 +222,9 @@ class SLearner(FLearner):
             qvalues of all actions from a state (ndarray).
         """
         if avec is not None:
-            return np.dot(self.weights, self.func(svec, avec))
+            return self.func(svec, avec, self.weights)
         else:
-            return np.array([np.dot(self.func(svec, a), self.weights)\
+            return np.array([self.func(svec, a, self.weights)\
                     for a in self._avecs])
 
 
@@ -232,4 +238,4 @@ class SLearner(FLearner):
             avec (ndarray/list/tuple): Vector of action variables.
             error (float): Error term (current value - next estimate)
         """
-        self.weights -= self.lrate * error * self.func(svec, avec)
+        self.weights -= self.lrate * error * self.dfunc(svec, avec, self.weights)

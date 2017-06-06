@@ -9,6 +9,8 @@ neighbourhood. The path traversed is divided into segments in between faults.
 Usage:
 
     > python adaptive.py -h
+    > python adaptive.py
+    > python .\adaptive.py --seed 40000 -f 0.1 -m 5 -a 5 0 -e 0.75 -s 3 -p softmax
 """
 
 from argparse import ArgumentParser
@@ -120,19 +122,27 @@ if __name__ == '__main__':
                       help="Exploration while recommending actions [0, 1]", default=0.)
     args.add_argument('-s', '--steps', metavar='S', type=int,
                       help="Number of steps to look ahead during learning", default=1)
+    args.add_argument('-p', '--policy', metavar='P', choices=['uniform', 'softmax', 'greedy'],
+                      help="The action selection policy", default='uniform')
+    args.add_argument('-o', '--online', action='store_true',
+                      help="Online or Offline policy update", default=False)
     args.add_argument('-m', '--maxlimit', metavar='M', type=int,
                       help="Number of steps at most in each episode", default=1)
     args.add_argument('-f', '--faultprob', metavar='F', type=float,
                       help="Probability of fault after each action", default=0.25)
     args.add_argument('--seed', metavar='SEED', type=int,
                       help="Random number seed", default=None)
+    args.add_argument('--greedyprob', metavar='G', type=float,
+                      help="Probability of using best action when policy=greedy", default=0.5)
     args = args.parse_args()
 
 
     # Initialize the QLearner with reward/transition matrices
+    mode = QLearner.ONLINE if args.online else QLearner.OFFLINE
     tb = TestBench(size=args.topology, seed=args.seed, learner=QLearner,
                    lrate=args.rate, discount=args.discount, exploration=args.explore,
-                   depth=args.maxlimit, steps=args.steps, policy=QLearner.UNIFORM)
+                   depth=args.maxlimit, steps=args.steps, policy=args.policy,
+                   max_prob=args.greedyprob, mode=mode)
     # Create a fault function that alters the environment
     fault = fault_func(tb.learner, args.faultprob, tb.random)
     # Get the starting point

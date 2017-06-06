@@ -110,7 +110,7 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
     # state vector to be used in the next iteration
     def state_demux(svec, avec, netlist, result):
         nsvec = np.zeros(num_tanks)
-        pump = (avec[0] + 1) // 2 - 1       # pump index corresponding to action
+        pump = (int(avec[0]) + 1) // 2 - 1       # pump index corresponding to action
         for i in range(num_tanks):
             nsvec[i] = result['v(n' + str(i) + ')']
             # Correcting negative voltages by transferring voltage deficit.
@@ -152,26 +152,29 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
         diff = [(num_tanks // 2 - i) * (left[i] - right[-i - 1]) for i in range(num_tanks // 2)]
         return -abs(sum(diff))                          # net moment due to tanks
 
-    # Defining the function approximation vector and the goal function
-    def func(svec, avec):
+    # Defining the function approximation vectors and the goal function
+    def func(svec, avec, weights):
         pumpvec = np.zeros(num_pumps)
         pump = (int(avec[0]) + 1) // 2 - 1       # pump index corresponding to action
         reverse = int(avec[0]) % 2               # odd - > reversed, even - > forward
         if avec[0] != 0:
-            pumpvec[pump] = 1 if reverse==0 else -1
-        return np.concatenate((np.square(svec) / tank_levels**2,
-                               np.array(svec) / tank_levels,
-                               pumpvec,
-                               [1]))
+            pumpvec[pump] = 1 if reverse == 0 else -1
+        return np.dot(weights,
+                      np.concatenate((np.square(svec) / tank_levels**2,
+                                      np.array(svec) / tank_levels,
+                                      pumpvec,
+                                      [1])))
+
+    funcdim = 2*num_tanks + num_pumps + 1
 
     def goal(svec):
         return abs(reward(None, None, svec)) <= 1
 
     # Creating the SLearner instance
     learner = SLearner(reward=reward, simulator=sim, stateconverter=fstate,
-                       actionconverter=faction, func=func, goal=goal, steps=steps,
-                       lrate=lrate, discount=discount, exploration=exploration,
-                       duration=deltat)
+                       actionconverter=faction, func=func, funcdim=funcdim,
+                       goal=goal, steps=steps, lrate=lrate,
+                       discount=discount, exploration=exploration, duration=deltat)
     return learner
 
 
@@ -249,7 +252,7 @@ if __name__ == '__main__':
     args.add_argument('-f', '--file', metavar='F', type=str,
                       help="File to save learned policy to", default='')
     args.add_argument('-x', '--server', action='store_true',
-                      help="Run server to visualize problem")
+                      help="Run server on localhost:8080 to visualize problem")
     args = args.parse_args()
 
     # Set up the learner environment
