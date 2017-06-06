@@ -2,7 +2,7 @@
 This module defines the SLearner class. SLearner learns a policy over a
 continuous state space defined by a set of state variables. For the initial
 learning, however, it discretely samples state space to learn weights for a
-functional approximation.
+functional approximation. See flearner for more details on approximation.
 
 Because state-space is continuous, OFFLINE learning is not possible since it
 cannot cache maximum q-values for each state reached during learning episodes.
@@ -56,12 +56,12 @@ class SLearner(FLearner):
         actionconverter (FlagGenerator): Same as state converter but for actions.
         func (func): A function approximation for the value of a state/action.
             Returns the terms of the approximation as a numpy array. Signature:
-                func(state_vec, action_vec, weights_vec)
+                float = func(state_vec, action_vec, weights_vec)
             Where [state|action_weights]_vec are arrays. The returned array
             can be of any length, where each element is a combination of the
             state/action variables.
-        dfunc (func): The derivative of func with respect to weights. Defaults
-            to func / weights (i.e. linear function approximation).
+        dfunc (func): The derivative of func with respect to weights. Same
+            input signature as func. Returns 'funcdim` elements in returned array.
         funcdim (int): The dimension of the weights to learn. Defaults to
             dimension of func.
         goal (list/tuple/set/array/function): Indices of goal states in rmatrix
@@ -93,7 +93,7 @@ class SLearner(FLearner):
     """
 
     def __init__(self, reward, simulator, stateconverter, actionconverter, goal,
-                 func, funcdim, dfunc=None, lrate=0.25, discount=1, exploration=0,
+                 func, funcdim, dfunc, lrate=0.25, discount=1, exploration=0,
                  policy='uniform', depth=None, steps=1, seed=None, duration=-1,
                  **kwargs):
         if seed is None:
@@ -112,7 +112,7 @@ class SLearner(FLearner):
 
         self.funcdim = funcdim
         self.func = func
-        self.dfunc = (lambda s, a, w: func(s, a, w) / w) if dfunc is None else dfunc
+        self.dfunc = dfunc
         self.weights = np.ones(self.funcdim)
 
         self._reward = reward

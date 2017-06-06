@@ -272,7 +272,7 @@ def slearner_testbench():
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=SLearner, lrate=lrate, policy=policy,
                   discount=discount, exploration=exploration, func=func, funcdim=7,
-                  dfunc=None, steps=steps)
+                  dfunc=dfunc, steps=steps)
 
     # Test 2: S learning
     assert t.learner.depth == t.num_states, 'Learning depth not set.'

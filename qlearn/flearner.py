@@ -9,7 +9,8 @@ Where 'f' is of the form:
 
     f = function(state variables, action variables, weights)
 
-The learner learns the values of weights that get the smallest errors.
+The learner learns the values of weights that get the smallest errors during the
+learning phase.
 
 For example, if there are three state/action variables: x, y, z, the approximation
 could be:
@@ -81,12 +82,12 @@ class FLearner(QLearner):
         actionconverter (FlagGenerator): Same as state converter but for actions.
         func (func): A function approximation for the value of a state/action.
             Returns the terms of the approximation as a numpy array. Signature:
-                func(state_vec, action_vec, weights_vec)
+                float = func(state_vec, action_vec, weights_vec)
             Where [state|action_weights]_vec are arrays. The returned array
             can be of any length, where each element is a combination of the
             state/action variables.
-        dfunc (func): The derivative of func with respect to weights. Defaults
-            to func / weights (i.e. linear function approximation).
+        dfunc (func): The derivative of func with respect to weights. Same
+            input signature as func. Returns 'funcdim` elements in returned array.
         funcdim (int): The dimension of the weights to learn. Defaults to
             dimension of func.
         goal (list/tuple/set/array/function): Indices of goal states in rmatrix
@@ -123,7 +124,7 @@ class FLearner(QLearner):
     """
 
     def __init__(self, rmatrix, stateconverter, actionconverter, goal, func,
-                 funcdim, dfunc=None, tmatrix=None, lrate=0.25, discount=1,
+                 funcdim, dfunc, tmatrix=None, lrate=0.25, discount=1,
                  exploration=0, policy='uniform', mode='offline', depth=None,
                  steps=1, seed=None, **kwargs):
         super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
@@ -132,7 +133,7 @@ class FLearner(QLearner):
         self.actionconverter = actionconverter
         self.funcdim = funcdim
         self.func = func
-        self.dfunc = (lambda s, a, w: func(s, a, w) / w) if dfunc is None else dfunc
+        self.dfunc = dfunc
         self.weights = np.ones(self.funcdim)
         self._avecs = [avec for avec in self.actionconverter]
 

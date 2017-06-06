@@ -153,17 +153,19 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
         return -abs(sum(diff))                          # net moment due to tanks
 
     # Defining the function approximation vectors and the goal function
-    def func(svec, avec, weights):
+    def dfunc(svec, avec, weights):
         pumpvec = np.zeros(num_pumps)
         pump = (int(avec[0]) + 1) // 2 - 1       # pump index corresponding to action
         reverse = int(avec[0]) % 2               # odd - > reversed, even - > forward
         if avec[0] != 0:
             pumpvec[pump] = 1 if reverse == 0 else -1
-        return np.dot(weights,
-                      np.concatenate((np.square(svec) / tank_levels**2,
-                                      np.array(svec) / tank_levels,
-                                      pumpvec,
-                                      [1])))
+        return np.concatenate((np.square(svec) / tank_levels**2,
+                               np.array(svec) / tank_levels,
+                               pumpvec,
+                               [1]))
+
+    def func(svec, avec, weights):
+        return np.dot(weights, dfunc(svec, avec, weights))
 
     funcdim = 2*num_tanks + num_pumps + 1
 
@@ -173,7 +175,7 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
     # Creating the SLearner instance
     learner = SLearner(reward=reward, simulator=sim, stateconverter=fstate,
                        actionconverter=faction, func=func, funcdim=funcdim,
-                       goal=goal, steps=steps, lrate=lrate,
+                       dfunc=dfunc, goal=goal, steps=steps, lrate=lrate,
                        discount=discount, exploration=exploration, duration=deltat)
     return learner
 
