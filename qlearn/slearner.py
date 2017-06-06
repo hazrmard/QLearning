@@ -213,7 +213,7 @@ class SLearner(FLearner):
 
         Returns:
             The qvalue of state,action if action is specified. Else returns the
-            qvalues of all actions from a state (array).
+            qvalues of all actions from a state (ndarray).
         """
         if avec is not None:
             return np.dot(self.weights, self.func(svec, avec))

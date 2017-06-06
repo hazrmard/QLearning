@@ -190,7 +190,7 @@ class QLearner:
             self.rmatrix = utils.read_matrix(rmatrix)
         else:
             raise TypeError('Either provide filename or ndarray for R matrix.')
-        self.qmatrix = np.ones_like(self.rmatrix)
+        self.qmatrix = self.random.rand(*self.rmatrix.shape)
         if self.depth is None:
             self.depth = self.num_states
 
@@ -371,7 +371,7 @@ class QLearner:
 
         Returns:
             The qvalue of state,action if action is specified. Else returns the
-            qvalues of all actions from a state (array).
+            qvalues of all actions from a state (ndarray).
         """
         if action is not None:
             return self.qmatrix[state, action]
@@ -587,7 +587,8 @@ class QLearner:
             Index of action in [r|q]matrix.
         """
         if self.mode == QLearner.ONLINE:
-            cumulative_utils = np.cumsum(self.qvalue(state))
+            qvals = self.qvalue(state)
+            cumulative_utils = np.cumsum(qvals - np.min(qvals))
             random_num = self.random.rand() * cumulative_utils[-1]
             return np.searchsorted(cumulative_utils, random_num)
         elif self.mode == QLearner.OFFLINE:
@@ -615,8 +616,9 @@ class QLearner:
             # cumulative_utils is the cumulative sum of the action q values for
             # each state. This is used to generate a random number based on the
             # relative utility of each action in a state.
+            qvals = np.array([self.qvalue(s) for s in range(self.num_states)])
             self._action_param['cumulative_utils'] = np.cumsum(
-                [self.qvalue(s) for s in range(self.num_states)], axis=1)
+                qvals - np.min(qvals), axis=1)
 
 
     def a_probs(self, state):

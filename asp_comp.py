@@ -36,7 +36,7 @@ from qlearn import QLearner
 from qlearn import TestBench
 
 NUM_TRIALS = 5                      # Number of topologies to generate
-EPISODES_PER_TRIAL = 100            # Number of points to test per topology
+EPISODES_PER_TRIAL = 50             # Number of points to test per topology
 TOPOLOGY_SIZE = 10                  # Length of size of topology
 GOALS = TOPOLOGY_SIZE               # Number of goal states
 TOPOLOGY_METHOD = 'fault'           # Topology generation algorithm
@@ -70,7 +70,7 @@ for trial in range(NUM_TRIALS):
                     goals=TOPOLOGY_SIZE, wrap=WRAP, lrate=LEARNING_RATE,\
                     discount=DISCOUNT_FACTOR, policy=policy, max_prob=GREEDY_MAX_PROB,\
                     exploration=EXPLORATION)
-        testbench.qlearner.learn(coverage=COVERAGE, ep_mode=LEARNING_MODE)
+        testbench.learner.learn(coverage=COVERAGE, ep_mode=LEARNING_MODE)
         tb.append(testbench)
 
     # Each episode generates a random point which is used by all policies to

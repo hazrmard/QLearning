@@ -24,6 +24,12 @@ def adaptive_path(tb, start, fault):
     faults in the environment. At occurance of a fault, relearns policy in the
     vicinity of the state.
 
+    Args:
+        tb (TestBench): A TestBench instance with learner set up.
+        start (tuple): The [Y, X] coordinates to start from.
+        fault (func): A function that modifies the tb.learner's environment
+            and returns True/False to indicate if a fault has occurred.
+
     Returns:
         A dict of the form {'001': [coords], ...'SEGMENT_NUMBER': List of coords}.
         Each segment is the path traversed in between faults,
@@ -31,21 +37,21 @@ def adaptive_path(tb, start, fault):
         Number of iterations (i.e. number of points traversed).
     """
     segment = [start]
-    i = 1
-    segments = {'001': segment}
+    i = 0   # segments completed
+    n = 0   # iterations completed
+    segments = {}
     state = tb.coord2state(start)
-    n = 1
     while not tb.learner.goal(state) and n <= 2 * tb.num_states:
-        n += 1
         if fault() or n == 0:
             segment = [segment[-1]]
-            i += 1
             segments['{:03d}'.format(i)] = segment
             episodes = tb.learner.neighbours(state)
             tb.learner.learn(episodes=episodes)
+            i += 1
         action = tb.learner.recommend(state)
         state = tb.learner.next_state(state, action)
         segment.append(tb.state2coord(state))
+        n += 1
     return segments, tb.state2coord(state), n
 
 
