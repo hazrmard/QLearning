@@ -81,28 +81,29 @@ class SLearner(FLearner):
             calculate next estimate of value of state, action pair. Default=1.
         seed (int): A seed for all random number generation in instance. Default
             is None.
-        duration (int): The duration for which a state/action is simulated to
-            reach the next state. Defaults to simulator's timestep.
+        **kwargs: Any number of other keyword arguments. These are passed to
+            simulator.run() when next_state() is called.
 
     Instance Attributes:
         goal (func): Takes a state number (int) and returns bool whether it is
             a goal state or not.
-        mode/policy/lrate/discount/exploration/simulator/duration: Same as args.
+        mode/policy/lrate/discount/exploration/simulator/depth: Same as args.
         random (np.random.RandomState): A random number generator local to this
             instance.
+        kwargs (dict): A dictionary of any other keyword arguments. These are
+            passed to simulator.run() when next_state() is called.
     """
 
     def __init__(self, reward, simulator, stateconverter, actionconverter, goal,
                  func, funcdim, dfunc, lrate=0.25, discount=1, exploration=0,
-                 policy='uniform', depth=None, steps=1, seed=None, duration=-1,
-                 **kwargs):
+                 policy='uniform', depth=None, steps=1, seed=None, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
             self.random = np.random.RandomState(seed)
 
         self.simulator = simulator
-        self.duration = duration if duration > 0 else simulator.timestep
+        self.kwargs = kwargs
 
         self.lrate = lrate
         self.discount = discount
@@ -172,7 +173,7 @@ class SLearner(FLearner):
 
 
     def next_state(self, svec, avec):
-        return self.simulator.run(duration=self.duration, state=svec, action=avec)
+        return self.simulator.run(state=svec, action=avec, **self.kwargs)
 
 
     def next_action(self, svec):

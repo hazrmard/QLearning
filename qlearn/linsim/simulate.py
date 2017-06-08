@@ -5,9 +5,8 @@ of a circuit. The simulator uses Ahkab library for calculations.
 All simulators expose the following interface:
 
 * Instantiation with the environment 'env' and class-specific parameters.
-* run(duration, state, action): Which simulates the environment for 'duration'
-    for a given 'state' after taking some 'action' and returns the new
-    environment variables.
+* run(state, action, **kwargs): Which simulates the environment for a given
+    'state' after taking some 'action' and returns the new environment variables.
 """
 
 import os
@@ -97,18 +96,22 @@ class Simulator:
         return circuit                 # apply any element changes
 
 
-    def run(self, duration, state=None, action=None, *args, **kwargs):
+    def run(self, state=None, action=None, duration=-1, **kwargs):
         """
         Runs a simulation for the specified time. Passes simulation results to
         postprocess().
 
         Args:
-            duration (float): Time over which to run simulation.
-            state (list/tuple/ndarray): A list of state variables that are used
+            state (list/tuple/ndarray): A vector of state variables that are used
                 to change self.netlist and self.circuit
+            action (list/tuple/ndarray): A vector of action variables that are used
+                to change self.netlist and self.circuit
+            duration (float): Time over which to run simulation. Defaults to
+                self.timestep.
         Returns:
             A vector of state variables describing the new state.
         """
+        duration = self.timestep if duration <= 0 else duration
         if state is not None or action is not None:
             self.set_state(state, action)
         # Setting initial conditions to either Operating Point or values
