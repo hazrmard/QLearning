@@ -175,7 +175,8 @@ class QLearner:
 
     def set_rq_matrix(self, rmatrix):
         """
-        Sets the reward/q-value matrices for the QLearner instance.
+        Sets the reward/q-value matrices for the QLearner instance. Also sets
+        self.depth if not specified.
 
         Args:
             rmatrix (ndarray/str): The reward matrix of [n states x m actions].

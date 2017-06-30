@@ -201,7 +201,7 @@ def create_server(learner, T, N):
     def demo():
         svec[:] = np.random.random(T) * (N - 1)
         avec[:] = learner.next_action(svec)
-        return flask.render_template('demo.html', N=N, T=T)
+        return flask.render_template('demo.html', N=N, T=T, L=list(range(T)))
 
 
     @app.route('/status/')
@@ -217,9 +217,9 @@ def create_server(learner, T, N):
             src = src[1:]
             dst = dst
             reverse = int(a[0]) % 2
-            action = [src, dst] if reverse == 0 else [dst, src]
+            action = '%s to %s' % ((src, dst) if reverse == 0 else (dst, src))
         else:
-            action = []
+            action = ''
         return flask.jsonify(levels=[str(i) for i in s],
                              action=action,
                              weights=[str(i) for i in w])    # return cached results

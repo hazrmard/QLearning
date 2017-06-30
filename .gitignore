@@ -89,7 +89,8 @@ ENV/
 .ropeproject
 
 .vscode/
-models/
+qlearn/linsim/models/
+qlearn/linsim/matlab/
 *.autosave
 slprj/
 *.dat

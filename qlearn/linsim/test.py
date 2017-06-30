@@ -411,7 +411,7 @@ def test_simulator_class():
         elif state == 2:
             cap = netlist.element('s1') # reversing state = 1 changes
             cap.nodes[1] = Node('n2')
-            netlist.add(Element(definition='R1 n2 n3 1e3'))
+            netlist.add(Resistor(definition='R1 n2 n3 1e3'))
         return netlist
 
     # Test 1: Instantiation and preprocessing

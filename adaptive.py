@@ -4,7 +4,9 @@ using reinforcement learning. The environment is a topology. The objective is
 to reach the lowest altitude. Actions are movements to adjacent grid points.
 Faults introduced mix the outcome of one action with another. At occurance of
 every fault, the policy is updated by learning from the current state's
-neighbourhood. The path traversed is divided into segments in between faults.
+neighbourhood. The learner is aware of the faults and how they change the
+environment. The path traversed is divided into segments in between faults.
+Faults are descrete and time independent.
 
 Usage:
 

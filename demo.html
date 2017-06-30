@@ -7,8 +7,13 @@
     <body style="padding: 0px; margin: 0px; height: 100%; width: 100%">
         <svg style="height: 100%; width: 100%"></svg>
         <script>
+            // Template variables
+            {% autoescape false %}
             var N = {{ N }};    // number of levels per tank/ max tank capacity+1
             var T = {{ T }};    // number of tanks
+            var L = {{ L }};    // Tank labels
+            {% endautoescape %}
+
             var W = d3.select("svg")._groups[0][0].clientWidth;
             var H = d3.select("svg")._groups[0][0].clientHeight;
             var timeout = 1000;
@@ -28,6 +33,7 @@
             var tanks = d3.select("svg").append("g")
             var graph = d3.select("svg").append("g");
             for (var i=0; i<T; i++) {
+                // tank outlines
                 tanks.append("rect")
                     .attr("x", gapx*(i+1) + width*i)
                     .attr("y", gapy)
@@ -36,12 +42,14 @@
                     .style("stroke", "black")
                     .style("stroke-width", "3px")
                     .style("fill", "none");
+                // tank labels
                 tanks.append("text")
                     .attr("x", gapx*(i+1) + width*(i+0.5))
                     .attr("y", gapy + height + 25)
                     .attr("font-size", "25px")
                     .attr("text-anchor", "middle")
-                    .text(i);
+                    .text(L[i]);
+                // tank fills
                 tanks.append("rect")
                     .attr("class", "tank")
                     .attr("x", gapx*(i+1) + width*i)
@@ -60,7 +68,7 @@
                             .attr("y", function(d) {return gapy + height - levelScale(d)})
                             .attr("height", levelScale)
                             .style("fill", colourScale);
-                    text.text(data.action.length == 0 ? "" : (data.action[0] + " to " + data.action[1]));
+                    text.text(data.action.length == 0 ? "" : data.action);
 
                     setTimeout(update, timeout);
                 });

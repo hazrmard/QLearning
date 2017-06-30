@@ -72,7 +72,7 @@ class FlagGenerator:
             state (int): The state number in basis 10.
 
         Returns:
-            A numpy array of flag values in the same order as provided at
+            A numpy float array of flag values in the same order as provided at
             instantiation.
         """
         if state >= self.num_states:

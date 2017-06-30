@@ -30,6 +30,10 @@ class Simulator:
     definitions. Instead they should be provided in special .ic directives or as
     a dict to this class. Inline initial conditions will be ignored.
 
+    Note: For actual simulation, a third party library (ahkab) is used. So the
+    Netlist representation stored in self.netlist is converted to the ahkab
+    representation in self.circuit.
+
     Args:
         env (Netlist): a Netlist instance defining the environment.
         timestep (float): Max interval between calculations during simulation.
@@ -80,7 +84,7 @@ class Simulator:
         """
         preprocess() is called right after Simulator is instantiated. It performs
         relevant conversions on the netlist in case an external simulation
-        library is being used (in this Ahkab).
+        library is being used (in this case, Ahkab).
         * Converts a Netlist instance into an ahkab.Circuit instance.
         * Extracts initial conditions for the first simulator run.
 
@@ -158,7 +162,12 @@ class Simulator:
         """
         Modifies the environment (netlist) according to the state/action variables.
         Changes in the modified netlist are applied to the ahkab.Circuit
-        representation used by the external simulation library.
+        representation used by the external simulation library. Changes can be:
+
+        * Additions/removals of circuit elements/ block instances,
+        * Modifications in element parameters,
+        * NOT new models/block definitions. They should be included in the
+          original netlist provided to Simulator.
 
         Args:
             state (list/tuple/ndarray): A list of state variables that are used
@@ -169,13 +178,14 @@ class Simulator:
         self.ic = self._parse_ic()              # get new initial conditions
         self._construct_nodes()                 # reconstruct nodes
         self._update_elements()                 # synchronize element parameters
+        self._create_elements()                 # create new elements
+        self._remove_elements()                 # remove redundant elements
 
 
     def _update_elements(self):
         """
         Synchronizes any structural changes made to self.netlist with ahkab.Circuit
         used by the third-party ahkab simulator:
-        * Additions/removals of elements,
         * Modifications in element parameters (including reference model),
         * Does NOT handle new models/block definitions. All models/blocks to be
           used should be included from the beginning.
@@ -288,8 +298,74 @@ class Simulator:
                     element.value = float(elem.value)
             # if element does not exist anymore
             except ValueError:
-                # self.circuit.remove(element)
+                # non-existent elements removed by self._remove_elements()
                 pass
+
+
+    def _create_elements(self):
+        """
+        Identifies new elements in self.netlist but not yet in self.circuit
+        and creates them.
+        """
+        part_ids = [e.part_id for e in self.circuit]
+        new_elems = [e for e in self.netlist.elements if e.name not in part_ids]
+        for element in new_elems:
+            # transistor elements (ekv or mosq)
+            if element.name[0] == 'm':
+                # TODO: Add support for 'm' and 'n' params as well. However
+                # they are not supported in ahkab netlist syntax.
+                self.circuit.add_mos(element.name, *map(str, element.nodes),
+                                     w=element.param('w'), l=element.param('l'),
+                                     model_label=element.value)
+            # diode element
+            elif element.name[0] == 'd':
+                self.circuit.add_diode(element.name, *map(str, element.nodes),
+                                       model_label=element.value,
+                                       Area=element.param('area'),
+                                       T=element.param('t'),
+                                       off=(element.param('off') is True))
+            # switch elements
+            elif element.name[0] == 's':
+                self.circuit.add_switch(element.name, *map(str, element.nodes),
+                                        *map(str, element.passive_nodes),
+                                        model_label=element.value)
+            # independent voltage source
+            elif element.name[0] == 'v':
+                self.circuit.add_vsource(element.name, *map(str, element.nodes),
+                                         element.value, **element.kwargs)
+            # independent current source
+            elif element.name[0] == 'i':
+                pass
+            # voltage controlled sources
+            elif element.name[0] in ('e', 'g'):
+                pass
+            # current controlled sources
+            elif element.name[0] in ('f', 'h'):
+                pass
+            # resistors
+            elif element.name[0] == 'r':
+                self.circuit.add_resistor(element.name, *map(str, element.nodes),
+                                          element.value)
+            # capacitors
+            elif element.name[0] == 'c':
+                self.circuit.add_capacitor(element.name, *map(str, element.nodes),
+                                          element.value)
+            # inductors
+            elif element.name[0] == 'l':
+                self.circuit.add_inductor(element.name, *map(str, element.nodes),
+                                          element.value)
+
+
+    def _remove_elements(self):
+        """
+        Identifies elements that are still in self.circuit (ahkab.Circuit) but
+        not in self.netlist (Netlist). Then removes them from self.circuit.
+        """
+        element_names = [e.name for e in self.netlist.elements]
+        old_elems_ind = [i for i, e in enumerate(self.circuit)\
+                         if e.part_id not in element_names]
+        for index in old_elems_ind[::-1]:
+            self.circuit.pop(index)
 
 
     def _parse_ic(self):
