@@ -14,12 +14,11 @@ Requires:
     ahkab
 """
 
+from argparse import ArgumentParser
 import flask
 import numpy as np
-from argparse import ArgumentParser
 from qlearn import SLearner
 from qlearn.linsim import Netlist
-from qlearn.linsim import Block
 from qlearn.linsim import Directive
 from qlearn.linsim import Simulator
 from qlearn.linsim import FlagGenerator
@@ -201,7 +200,8 @@ def create_server(learner, T, N):
     def demo():
         svec[:] = np.random.random(T) * (N - 1)
         avec[:] = learner.next_action(svec)
-        return flask.render_template('demo.html', N=N, T=T, L=list(range(T)))
+        return flask.render_template('demo.html', N=N, T=T, L=list(range(T)),
+                                     O=list(range(T)))
 
 
     @app.route('/status/')
@@ -222,7 +222,8 @@ def create_server(learner, T, N):
             action = ''
         return flask.jsonify(levels=[str(i) for i in s],
                              action=action,
-                             weights=[str(i) for i in w])    # return cached results
+                             weights=[str(i) for i in w],
+                             imbalance=learner.reward(None, None, s))    # return cached results
 
     return app
 

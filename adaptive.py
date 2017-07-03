@@ -13,6 +13,10 @@ Usage:
     > python adaptive.py -h
     > python adaptive.py
     > python .\adaptive.py --seed 40000 -f 0.1 -m 5 -a 5 0 -e 0.75 -s 3 -p softmax
+
+Requires:
+    numpy,
+    matplotlib
 """
 
 from argparse import ArgumentParser

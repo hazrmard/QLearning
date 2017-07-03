@@ -229,7 +229,7 @@ class SLearner(FLearner):
                     for a in self._avecs])
 
 
-    def _update(self, svec, avec, error):
+    def update(self, svec, avec, error):
         """
         Updates weights given state, action, and error in current and next
         value estimate.

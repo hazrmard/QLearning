@@ -477,23 +477,30 @@ class QLearner:
                     for k in range(tau, min(tau + self.steps, T)):
                         G += E * delta[k]
                         E = self.discount * E * pi[k+1]
-                    self._update(S[tau], A[tau], self.qvalue(S[tau], A[tau]) - G)
+                    self.update(S[tau], A[tau], self.qvalue(S[tau], A[tau]) - G)
                 t += 1
 
             if verbose:
-                self.print_diagnostic((i+1) * 100 / (int(coverage * self.num_states)))
+                if hasattr(episodes, '__len__'):
+                    self.print_diagnostic((i+1) * 100 / len(episodes))
+                else:
+                    self.print_diagnostic((i+1) * 100 / int(coverage * self.num_states))
+
         if verbose:
             print()
 
 
     def print_diagnostic(self, percent):
         """
-        Prints a diagnostic message each learning episode.
+        Prints a diagnostic message each learning episode. Called by learn()
+
+        Args:
+            percent (int): Percentage denoting progress of learn()
         """
-        print('\rEpisodes: %5d%% progress' % (percent,), end='')
+        print('\rEpisodes: %5d%% progress, w: ' % (percent,), end='')
 
 
-    def _update(self, state, action, error):
+    def update(self, state, action, error):
         """
         Given the state, action and the error in past and current value
         estimate, updates the value function (qmatrix in this case).

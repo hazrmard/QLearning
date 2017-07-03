@@ -183,7 +183,7 @@ class FLearner(QLearner):
                     for a in self._avecs])
 
 
-    def _update(self, state, action, error):
+    def update(self, state, action, error):
         """
         Updates weights given state, action, and error in current and next
         value estimate.
@@ -208,6 +208,9 @@ class FLearner(QLearner):
     def print_diagnostic(self, percent):
         """
         Prints a diagnostic message each learning episode.
+
+        Args:
+            percent (int): Percentage denoting progress of learn()
         """
         print('\rEpisodes: %5d%% progress, w: ' % (percent,),
               *['{0:9.2e}'.format(w) for w in self.weights], end='')
