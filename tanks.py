@@ -39,15 +39,16 @@ from qlearn import utils
 
 # Default model configuration parameters
 NETLIST_FILE = 'models/fuel_tanks.netlist'
-ON_RESISTANCE = 1e0
-OFF_RESISTANCE = 1e6
-INTERNAL_RESISTANCE = 1e3
-CAPACITANCE = 1e-3
-MAX_SIM_TSTEP = 1e-2
-DELTA_T = 3e-2
-NUM_TANKS = 6
-NUM_LEVELS = 5
-FAULT = ['']
+ON_RESISTANCE = 1e0     # Valve resistance when on
+OFF_RESISTANCE = 1e6    # Valve resistance when off
+INTERNAL_RESISTANCE = 1e3   # Resistance associated with tanks for normal drainage
+CAPACITANCE = 1e-3          # Tank capacities (Total fuel mass / total potential)
+MAX_SIM_TSTEP = 1e-2        # Simulation time resolution
+DELTA_T = 3e-2              # Time duration of each action
+NUM_TANKS = 6           # Not variable. Hardcoded in netlist.
+NUM_VALVES = 14         # Not variable. Hardcoded in netlist.
+NUM_LEVELS = 1 + 4      # Possible potential values to consider when generating episodes [0, NUM_LEVELS)
+FAULT = ['']            # Fault type. See create_fault()
 
 # Default learning configuration parameters
 GOAL_THRESH = 0.05
@@ -98,10 +99,11 @@ ARGS = args.parse_args()
 # Specify dimension and resolution of state and action vectors
 # A state vector is a NUM_TANKS+1 vector where the last element is the open valve
 # and the first NUM_TANKS elements are potentials in tanks
-STATES = FlagGenerator(*[ARGS.num_levels] * NUM_TANKS, 14)
+STATES = FlagGenerator(*[ARGS.num_levels] * NUM_TANKS, NUM_VALVES + 1)
 # An action vector is a single element vector signalling which of the 14 valves
-# is active. Same as the last element in state vector
-ACTIONS = FlagGenerator(14)
+# is active. Same as the last element in state vector. A 0 value means all
+# valves are off.
+ACTIONS = FlagGenerator(NUM_VALVES + 1)
 
 
 # Instantiate netlist representing the fuel tank system
@@ -130,7 +132,8 @@ def state_mux(svec, avec, netlist):
         INITIAL.param('v(' + str(CAPACITORS[i].nodes[0]) + ')', svec[i])
     for resistor in RESISTORS:
         resistor.value = OFF_RESISTANCE
-    RESISTORS[int(avec[0])].value = ON_RESISTANCE
+    if avec[0] != 0:
+        RESISTORS[int(avec[0]-1)].value = ON_RESISTANCE
     return NET
 
 
@@ -165,8 +168,9 @@ def goal(svec):
 # Returns the gradient of the policy function w.r.t weights: a vector of length
 # FUNCDIM (see below)
 def dfunc(svec, avec, weights):
-    valves = np.zeros(14)
-    valves[int(avec[0])] = 1
+    valves = np.zeros(NUM_VALVES)
+    if avec[0] != 0:
+        valves[int(avec[0])-1] = 1
     return np.concatenate((svec[:-1] / ARGS.num_levels, valves, [1]))
 
 
@@ -178,7 +182,7 @@ def func(svec, avec, weights):
 
 # Number of weights to learn in functional approximation, in this case:
 # 1 weight for each tank, 1 weight for each valve, and a bias term
-FUNCDIM = NUM_TANKS + 14 + 1
+FUNCDIM = NUM_TANKS + NUM_VALVES + 1
 
 
 # Define a fault function. Calling it with an argument introduces a fault in the
@@ -239,9 +243,10 @@ def demo():
     if ARGS.initial is None:
         svec[:-1] = LEARNER.random.rand(NUM_TANKS) * (ARGS.num_levels - 1)
         svec[-1] = LEARNER.random.randint(14)
+        avec[:] = LEARNER.next_action(svec)
     else:
         svec[:] = np.array(ARGS.initial)
-    avec[:] = LEARNER.next_action(svec)
+        avec[:] = ARGS.initial[-1]
     return flask.render_template('demo.html', N=ARGS.num_levels, T=NUM_TANKS,
                                  L=[c.name[1:] for c in CAPACITORS],
                                  O=[0, 1, 4, 5, 2, 3])
@@ -261,7 +266,10 @@ def status():
     svec[:] = LEARNER.next_state(svec, avec)        # compute new results
     if not ARGS.disable:
         avec[:] = LEARNER.recommend(svec)
-    action = RESISTORS[a[0]].name[1:].upper() + ' on'
+    if a[0] == 0:
+        action = 'All off'
+    else:
+        action = RESISTORS[a[0]-1].name[1:].upper() + ' on'
     return flask.jsonify(levels=[str(i) for i in s],
                          action=action,
                          weights=[str(i) for i in w],
