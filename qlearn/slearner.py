@@ -65,7 +65,7 @@ class SLearner(FLearner):
         funcdim (int): The dimension of the weights to learn. Defaults to
             dimension of func.
         goal (list/tuple/set/array/function): Indices of goal states in rmatrix
-            OR a function that accepts a state index and returns true if goal.
+            OR a function that accepts a state vector and returns true if goal.
         lrate (float): Learning rate for q-learning.
         discount (float): Discount factor for q-learning.
         exploration (float): Balance between exploring random states according
@@ -90,8 +90,6 @@ class SLearner(FLearner):
         mode/policy/lrate/discount/exploration/simulator/depth: Same as args.
         random (np.random.RandomState): A random number generator local to this
             instance.
-        kwargs (dict): A dictionary of any other keyword arguments. These are
-            passed to simulator.run() when next_state() is called.
     """
 
     def __init__(self, reward, simulator, stateconverter, actionconverter, goal,
@@ -103,7 +101,7 @@ class SLearner(FLearner):
             self.random = np.random.RandomState(seed)
 
         self.simulator = simulator
-        self.kwargs = kwargs
+        # self.kwargs = kwargs
 
         self.lrate = lrate
         self.discount = discount
@@ -116,13 +114,13 @@ class SLearner(FLearner):
         self.dfunc = dfunc
         self.weights = np.ones(self.funcdim)
 
-        self._reward = reward
-        self.set_goal(goal)
-        self.set_action_selection_policy(policy, mode=SLearner.ONLINE)
-
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
         self._avecs = [avec for avec in self.actionconverter]
+
+        self._reward = reward
+        self.set_goal(goal)
+        self.set_action_selection_policy(policy, mode=SLearner.ONLINE, **kwargs)
 
     @property
     def num_states(self):
@@ -172,8 +170,13 @@ class SLearner(FLearner):
         return self._reward(svec, avec, next_svec)
 
 
-    def next_state(self, svec, avec):
-        return self.simulator.run(state=svec, action=avec, **self.kwargs)
+    def next_state(self, svec, avec, **kwargs):
+        """
+        Uses a linsim.Simulator instance (or a compatible class) to find the
+        next state vector. Forwards keyword arguments to the simulator.run
+        function.
+        """
+        return self.simulator.run(state=svec, action=avec, **kwargs)
 
 
     def next_action(self, svec):

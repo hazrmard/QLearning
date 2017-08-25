@@ -18,3 +18,8 @@ that were helpful in this project.
 * Artificial Intelligence - Russel, Peter, Norvig
 * [Reinforcement Learning: An Introduction - Sutton, Barto](http://www.incompleteideas.net/sutton/book/the-book.html)
 * [Reinforcement Learning using Neural Networks - Remi Coulom](https://www.remi-coulom.fr/Thesis/)
+
+## Papers
+
+* [Multiresolution state-space discretization for Q-Learning with pseudorandomized
+  discretization](http://ieeexplore.ieee.org/document/5596516/?arnumber=5596516&tag=1)

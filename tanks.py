@@ -17,6 +17,7 @@ representation of the system in: models/fuel_tanks.asc
 Usage:
 
 > python tanks.py --help
+> python tanks.py -c 1e-4  --seed 1001 -l tankweights.dat -t 3 -s 3 -m 6 -i 4 4 4 4 4 4 0 -u 4
 
 Default model and learning parameters can be changed below. Some of them
 can be tuned from the command-line.
@@ -65,7 +66,7 @@ INTERVAL = DEPTH
 # Set up command-line configuration
 args = ArgumentParser()
 args.add_argument('-i', '--initial', type=float, nargs=NUM_TANKS+1,
-                  help="Number of levels per tank", default=None)
+                  help="Initial tank levels and first action", default=None)
 args.add_argument('-n', '--num_levels', metavar='N', type=int,
                   help="Number of levels per tank", default=NUM_LEVELS)
 args.add_argument('-c', '--coverage', metavar='C', type=float,
@@ -257,6 +258,9 @@ def status():
     s = list(svec)                                  # cache last results
     a = list(avec)
     w = list(LEARNER.weights)
+
+    if goal(s):
+        exit('Goal state reached.')
 
     if COUNT % ARGS.interval == 0 and not ARGS.disable: # re-learn at interval steps
         episodes = LEARNER.neighbours(svec)

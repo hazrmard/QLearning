@@ -254,7 +254,7 @@ def slearner_testbench():
 
     # Set up
     size = 5
-    policy = SLearner.UNIFORM
+    policy = SLearner.GREEDY
     coverage = 0.3
     exploration = 0.25
     seed = 1000
@@ -273,7 +273,7 @@ def slearner_testbench():
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=SLearner, lrate=lrate, policy=policy,
                   discount=discount, exploration=exploration, func=func, funcdim=7,
-                  dfunc=dfunc, steps=steps, duration=duration)
+                  dfunc=dfunc, steps=steps, duration=duration, max_prob=0.4)
 
     # Test 2: S learning
     assert t.learner.depth == t.num_states, 'Learning depth not set.'

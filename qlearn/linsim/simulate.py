@@ -38,6 +38,9 @@ class Simulator:
         env (Netlist): a Netlist instance defining the environment.
         timestep (float): Max interval between calculations during simulation.
             Lower values are performance intensive.
+        duration (float): The default time to run the simulation. Used when
+            duration is not provided to run(). If not specified, defaults to
+            timestep.
         state_mux (func): A function that gets a vector of state variables and
             modifies the netlist accordingly. Returns the modified netlist.
             Signature:
@@ -66,10 +69,11 @@ class Simulator:
     """
 
     def __init__(self, env, timestep, state_mux, state_demux=None, ic=None,
-                 *args, **kwargs):
+                 duration=-1, *args, **kwargs):
         self.netlist = env
         self.circuit = self.preprocess(env)
         self.timestep = timestep
+        self.duration = timestep if duration <= 0 else duration
         self._state_mux = state_mux
         self._state_demux = state_demux if state_demux is not None else\
                             lambda w, x, y, z: z
@@ -115,7 +119,7 @@ class Simulator:
         Returns:
             A vector of state variables describing the new state.
         """
-        duration = self.timestep if duration <= 0 else duration
+        duration = self.duration if duration <= 0 else duration
         if state is not None or action is not None:
             self.set_state(state, action)
         # Setting initial conditions to either Operating Point or values
