@@ -4,6 +4,12 @@ fuel tanks. The objective is to balance the tanks by minimizing the moment
 about the center. The state space is continuous and the action space is
 descrete.
 
+For N tanks, there are N-choose-2 current sources that act as valves to transfer
+charge/fuel between any 2 tanks. Only 1 valve can be active at a time. The system
+is created during runtime (as opposed to loading a netlist file).
+
+For another implementation of the tanks system based on a netlist, see tanks.py
+
 Usage:
 
     > python demo.py -h
@@ -54,7 +60,7 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
     # I * t = C * V
     # I = C * dV/dt
     # So for a fixed dV = 1V, I = C / dt
-    # where dt is the duration/timestep of the simulation. This 'I' value is used
+    # where dt is the duration/stepsize of the simulation. This 'I' value is used
     # when fuel pumps are on to simulate a 1V change in tank levels.
     capacitance = 1e-3
     deltat = 1e-1
@@ -175,7 +181,7 @@ def create_system(num_tanks=4, tank_levels=5, lrate=1e-2, discount=0.75, explora
     learner = SLearner(reward=reward, simulator=sim, stateconverter=fstate,
                        actionconverter=faction, func=func, funcdim=funcdim,
                        dfunc=dfunc, goal=goal, steps=steps, lrate=lrate,
-                       discount=discount, exploration=exploration, duration=deltat)
+                       discount=discount, exploration=exploration, stepsize=deltat)
     return learner
 
 
@@ -248,14 +254,14 @@ if __name__ == '__main__':
                       help="Exploration while recommending actions [0, 1]", default=0.)
     args.add_argument('-s', '--steps', metavar='S', type=int,
                       help="Number of steps to look ahead during learning", default=1)
-    args.add_argument('-m', '--maxlimit', metavar='M', type=int,
+    args.add_argument('-m', '--maxdepth', metavar='M', type=int,
                       help="Number of steps at most in each episode", default=1)
     args.add_argument('-l', '--load', metavar='F', type=str,
                       help="File to load learned policy from", default='')
     args.add_argument('-f', '--file', metavar='F', type=str,
                       help="File to save learned policy to", default='')
     args.add_argument('-x', '--server', action='store_true',
-                      help="Run server on localhost:8080 to visualize problem")
+                      help="Run server on localhost:5000 to visualize problem")
     args = args.parse_args()
 
     # Set up the learner environment
@@ -267,7 +273,7 @@ if __name__ == '__main__':
     # Loading weights or learning new policy
     if args.load == '':
         input('\nPress Enter to begin learning.')
-        learner.learn(coverage=args.coverage, verbose=True, limit=args.maxlimit)
+        learner.learn(coverage=args.coverage, verbose=True, depth=args.maxdepth)
         if args.file != '':
             utils.save_matrix(learner.weights, args.file)
     else:

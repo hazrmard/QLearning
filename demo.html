@@ -13,7 +13,12 @@
         </style>
     </head>
     <body style="padding: 0px; margin: 0px; height: 100%; width: 100%">
-        <svg style="height: 100%; width: 100%"></svg>
+        <svg style="height: 90%; width: 100%"></svg>
+        <div class="control-panel" style="width: 100%; text-align: center">
+            <button autofocus type="button" id="btnStart">Start</button>
+            <button type="button" id="btnStop">Stop</button>
+        </div>
+
         <script>
             // Template variables
             {% autoescape false %}
@@ -93,6 +98,8 @@
             var linePath = graph.append("path")
                                 .attr("class", "line");
             
+            // define regular update function
+            var stopFlag = true;    // indicates update is paused
             var count = 0;          // timesteps passed
             var imbalances = [];    // record of imbalances
             var update = function() {
@@ -123,10 +130,21 @@
                                 .duration(timeout)
                                 .attr("d", line);
 
-                    setTimeout(update, timeout);
+                    if (!stopFlag) {
+                        setTimeout(update, timeout);
+                    }
                 });
             }
-            update();
+
+            // add functionality to start button
+            document.getElementById("btnStart").addEventListener("click", function() {
+                stopFlag = false;
+                update();
+            })
+            // add functionality to stop button
+            document.getElementById("btnStop").addEventListener("click", function() {
+                stopFlag = true;
+            })
         </script>
     </body>
 </html>

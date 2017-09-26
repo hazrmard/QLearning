@@ -520,6 +520,7 @@ class Transistor(Element):
     """
     Represents a MOS Transistor element. Instantiation format:
         M<NAME> <DRAIN> <GATE> <SOURCE> <BULK> <MODEL> w=<WIDTH> l=<LENGTH>
+    Note: Optional key-value pairs: m=<SHUNT MULTIPLIER> n=<SERIES MULTIPLIER>
     Either provide the definition string to definition keyword, or instantiate
     with positional/keyword arguments in the same order.
 

@@ -111,7 +111,7 @@ class QLearner:
         self._goals = set()
         self._next_state = None
         self._policy = None
-        self.depth = depth
+        self.depth = depth  # set later in set_rq_matrix() if None
         self.steps = steps
         self.lrate = lrate
         self.discount = discount
@@ -382,8 +382,8 @@ class QLearner:
             return self.qmatrix[state]
 
 
-    def learn(self, episodes=None, coverage=1., ep_mode=None, state_action=(),
-              limit=-1, verbose=False, **kwargs):
+    def learn(self, episodes=None, coverage=1., ep_mode=None, actions=(),
+              depth=-1, verbose=False, stepsize=lambda x: -1):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
@@ -398,16 +398,21 @@ class QLearner:
                 Default=1 i.e. all state are covered by episodes().
             ep_mode (str): Order in which to iterate through states. See
                 episodes() mode argument.
+            stepsize (func): A function that accepts a state and returns a
+                number representing the step size of the next action. The stepsize is
+                forwarded as a 'stepsize' keyword argument to self.next_state. Used
+                by SLearner for variable simulation times. Optional. Can be used
+                to convey other information to an overridden next_state function.
             verbose (bool): Whether to print diagnostic messages.
             OR
-            state_action (tuple): A tuple of state/action to learn from instead
-                of multiple episodes. Used by recommend() when learning from a
-                single action.
+            actions (list/tuple): A list of actions to take for each starting state
+                provided in episodes. Optional.
 
-            limit (int): Number of iterations allowed per episode. Defaults to
+            depth (int): Number of iterations allowed per episode. Defaults to
                 self.num_states
         """
-        variablenstep(self, episodes, coverage, ep_mode, state_action, limit, verbose)
+        variablenstep(self, episodes, coverage, ep_mode, actions, depth, verbose,
+                      stepsize)
 
 
     def print_diagnostic(self, percent):
@@ -433,7 +438,7 @@ class QLearner:
         self.qmatrix[state, action] -= self.lrate * error
 
 
-    def recommend(self, state):
+    def recommend(self, state, **kwargs):
         """
         Recommends an action based on the learned q matrix and current state.
         Must be called after learn(). Either recommends an exploratory action
@@ -442,6 +447,8 @@ class QLearner:
 
         Args:
             state (int): Index of current state in [r|q]matrix.
+            kwargs: Other keyword arguments passed to learn() during exploration
+                phase for e.g. stepsize
 
         Returns:
             Index of action to take (column) in [r|q]matrix.
@@ -449,7 +456,7 @@ class QLearner:
         if self.random.rand() < self.exploration:
             # explore
             action = self.next_action(state)
-            self.learn(state_action=(state, action))
+            self.learn(episodes=[state], actions=[action], **kwargs)
             return action
         else:
             # exploit

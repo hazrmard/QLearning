@@ -132,7 +132,7 @@ if __name__ == '__main__':
                       help="The action selection policy", default='uniform')
     args.add_argument('-o', '--online', action='store_true',
                       help="Online or Offline policy update", default=False)
-    args.add_argument('-m', '--maxlimit', metavar='M', type=int,
+    args.add_argument('-m', '--maxdepth', metavar='M', type=int,
                       help="Number of steps at most in each episode", default=1)
     args.add_argument('-f', '--faultprob', metavar='F', type=float,
                       help="Probability of fault after each action", default=0.25)
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     mode = QLearner.ONLINE if args.online else QLearner.OFFLINE
     tb = TestBench(size=args.topology, seed=args.seed, learner=QLearner,
                    lrate=args.rate, discount=args.discount, exploration=args.explore,
-                   depth=args.maxlimit, steps=args.steps, policy=args.policy,
+                   depth=args.maxdepth, steps=args.steps, policy=args.policy,
                    max_prob=args.greedyprob, mode=mode)
     # Create a fault function that alters the environment
     fault = fault_func(tb.learner, args.faultprob, tb.random)

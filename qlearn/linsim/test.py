@@ -425,6 +425,7 @@ def test_simulator_class():
     assert res1['v(n1)'] > res2['v(n1)'], 'Simulator state does not persist.'
 
     # Test 3: Switching states and running simulation
+    # TODO: Check for correct Netlist -> ahkab.Circuit conversion
     for state in (1, 2):
         sim.set_state(state, None)
         sim.run(duration=1e-3)

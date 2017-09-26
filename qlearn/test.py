@@ -263,7 +263,7 @@ def slearner_testbench():
     steps = 3
     start = (2, 2)
     funcdim = 7
-    duration = 1e-2
+    stepsize = 1e-2
     def dfunc(s, a, w):
         return np.array([s[0]*a[0]/20, s[1]*a[1]/20, s[0]**2/100, s[1]**2/100,
                          a[0]**2/4, a[1]**2/4, 1])
@@ -273,7 +273,7 @@ def slearner_testbench():
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=SLearner, lrate=lrate, policy=policy,
                   discount=discount, exploration=exploration, func=func, funcdim=7,
-                  dfunc=dfunc, steps=steps, duration=duration, max_prob=0.4)
+                  dfunc=dfunc, steps=steps, stepsize=stepsize, max_prob=0.4)
 
     # Test 2: S learning
     assert t.learner.depth == t.num_states, 'Learning depth not set.'

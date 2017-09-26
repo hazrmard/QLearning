@@ -44,29 +44,30 @@ ON_RESISTANCE = 1e0     # Valve resistance when on
 OFF_RESISTANCE = 1e6    # Valve resistance when off
 INTERNAL_RESISTANCE = 1e3   # Resistance associated with tanks for normal drainage
 CAPACITANCE = 1e-3          # Tank capacities (Total fuel mass / total potential)
-MAX_SIM_TSTEP = 1e-2        # Simulation time resolution
-DELTA_T = 3e-2              # Time duration of each action
+MAX_SIM_TSTEP = 1e-2        # Simulation time resolution i.e. timestep
+DELTA_T = 3e-2              # Time duration of each action i.e. step size
 NUM_TANKS = 6           # Not variable. Hardcoded in netlist.
 NUM_VALVES = 14         # Not variable. Hardcoded in netlist.
 NUM_LEVELS = 1 + 4      # Possible potential values to consider when generating episodes [0, NUM_LEVELS)
 FAULT = ['']            # Fault type. See create_fault()
 
 # Default learning configuration parameters
-GOAL_THRESH = 0.05
-COVERAGE = 0.2
-LRATE = 1e-2
-DISCOUNT = 0.75
-EXPLORATION = 0.
-POLICY = SLearner.UNIFORM
-DEPTH = 5
-STEPS = 1
-SEED = None
-INTERVAL = DEPTH
+GOAL_THRESH = 0.05  # Sensitivity to a state being considered goal. Smaller -> strict
+COVERAGE = 0.2      # Fraction of states to cover in learning initially (or load weights from file)
+LRATE = 1e-2        # Learning rate (0, 1]
+DISCOUNT = 0.75     # Discount factor (0, 1]
+EXPLORATION = 0.    # Exploration while recommending actions [0, 1]
+POLICY = SLearner.UNIFORM   # The action selection policy
+DEPTH = 5           # Number of steps at most in each learning episode
+STEPS = 1           # Number of steps to look ahead during learning
+SEED = None         # Random number seed
+INTERVAL = DEPTH    # Number of steps between re-learning policy
 
 # Set up command-line configuration
 args = ArgumentParser()
-args.add_argument('-i', '--initial', type=float, nargs=NUM_TANKS+1,
-                  help="Initial tank levels and first action", default=None)
+args.add_argument('-i', '--initial', metavar=tuple(['L']*NUM_TANKS + ['A']), type=float, 
+                  nargs=NUM_TANKS+1, help="Initial tank levels and first action",
+                  default=None)
 args.add_argument('-n', '--num_levels', metavar='N', type=int,
                   help="Number of levels per tank", default=NUM_LEVELS)
 args.add_argument('-c', '--coverage', metavar='C', type=float,
@@ -79,7 +80,7 @@ args.add_argument('-e', '--explore', metavar='E', type=float,
                   help="Exploration while recommending actions [0, 1]", default=EXPLORATION)
 args.add_argument('-s', '--steps', metavar='S', type=int,
                   help="Number of steps to look ahead during learning", default=STEPS)
-args.add_argument('-m', '--maxlimit', metavar='M', type=int,
+args.add_argument('-m', '--maxdepth', metavar='M', type=int,
                   help="Number of steps at most in each learning episode", default=DEPTH)
 args.add_argument('-t', '--interval', metavar='T', type=int,
                   help="Number of steps between re-learning policy", default=INTERVAL)
@@ -213,8 +214,8 @@ SIM = Simulator(env=NET, timestep=MAX_SIM_TSTEP, state_mux=state_mux,
 LEARNER = SLearner(reward=reward, simulator=SIM, stateconverter=STATES,
                    actionconverter=ACTIONS, goal=goal, func=func, funcdim=FUNCDIM,
                    dfunc=dfunc, lrate=ARGS.rate, discount=ARGS.discount,
-                   exploration=ARGS.explore, policy=ARGS.policy, depth=ARGS.maxlimit,
-                   steps=ARGS.steps, seed=ARGS.seed, duration=DELTA_T)
+                   exploration=ARGS.explore, policy=ARGS.policy, depth=ARGS.maxdepth,
+                   steps=ARGS.steps, seed=ARGS.seed, stepsize=DELTA_T)
 
 
 # Print paramters

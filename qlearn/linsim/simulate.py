@@ -38,8 +38,8 @@ class Simulator:
         env (Netlist): a Netlist instance defining the environment.
         timestep (float): Max interval between calculations during simulation.
             Lower values are performance intensive.
-        duration (float): The default time to run the simulation. Used when
-            duration is not provided to run(). If not specified, defaults to
+        stepsize (float): The default time to run the simulation. Used when
+            stepsize is not provided to run(). If not specified, defaults to
             timestep.
         state_mux (func): A function that gets a vector of state variables and
             modifies the netlist accordingly. Returns the modified netlist.
@@ -69,11 +69,11 @@ class Simulator:
     """
 
     def __init__(self, env, timestep, state_mux, state_demux=None, ic=None,
-                 duration=-1, *args, **kwargs):
+                 stepsize=-1, *args, **kwargs):
         self.netlist = env
         self.circuit = self.preprocess(env)
         self.timestep = timestep
-        self.duration = timestep if duration <= 0 else duration
+        self.stepsize = timestep if stepsize <= 0 else stepsize
         self._state_mux = state_mux
         self._state_demux = state_demux if state_demux is not None else\
                             lambda w, x, y, z: z
@@ -104,7 +104,7 @@ class Simulator:
         return circuit                 # apply any element changes
 
 
-    def run(self, state=None, action=None, duration=-1, **kwargs):
+    def run(self, state=None, action=None, stepsize=-1, **kwargs):
         """
         Runs a simulation for the specified time. Passes simulation results to
         postprocess().
@@ -114,18 +114,18 @@ class Simulator:
                 to change self.netlist and self.circuit
             action (list/tuple/ndarray): A vector of action variables that are used
                 to change self.netlist and self.circuit
-            duration (float): Time over which to run simulation. Defaults to
+            stepsize (float): Time over which to run simulation. Defaults to
                 self.timestep.
         Returns:
             A vector of state variables describing the new state.
         """
-        duration = self.duration if duration <= 0 else duration
+        stepsize = self.stepsize if stepsize <= 0 else stepsize
         if state is not None or action is not None:
             self.set_state(state, action)
         # Setting initial conditions to either Operating Point or values
         # provided to the class.
         x0 = 'op' if len(self.ic) == 0 else ahkab.new_x0(self.circuit, self.ic)
-        tran = ahkab.new_tran(tstart=0, tstop=duration, tstep=self.timestep,\
+        tran = ahkab.new_tran(tstart=0, tstop=stepsize, tstep=self.timestep,\
                               x0=x0, method=ahkab.transient.TRAP)
         res = ahkab.run(self.circuit, tran)['tran']
         return self.postprocess(state, action, res)
@@ -181,8 +181,8 @@ class Simulator:
         self.netlist = self._state_mux(state, action, self.netlist)   # get modified netlist
         self.ic = self._parse_ic()              # get new initial conditions
         self._construct_nodes()                 # reconstruct nodes
-        self._update_elements()                 # synchronize element parameters
         self._create_elements()                 # create new elements
+        self._update_elements()                 # synchronize element parameters
         self._remove_elements()                 # remove redundant elements
 
 
@@ -191,9 +191,10 @@ class Simulator:
         Synchronizes any structural changes made to self.netlist with ahkab.Circuit
         used by the third-party ahkab simulator:
         * Modifications in element parameters (including reference model),
-        * Does NOT handle new models/block definitions. All models/blocks to be
-          used should be included from the beginning.
+        * Does NOT handle new models/block definitions/instances. All models/blocks
+          to be used should be included from the beginning.
         """
+        #TODO: Support block instances/definitions.
         node_dict = self.circuit.nodes_dict
         for element in self.circuit:
             # change params for elems that still exist
@@ -270,7 +271,7 @@ class Simulator:
                     elif stype is None:
                         element.is_timedependent = True
                         element._time_function = elem.function
-                    else:
+                    else:   # i.e. stype is [i|v]ac/dc
                         element.is_timedependent = False
                     # setting up time invariant properties
                     element.abs_ac = np.abs(elem.param(ac)) if elem.param(ac) else None
@@ -309,55 +310,75 @@ class Simulator:
     def _create_elements(self):
         """
         Identifies new elements in self.netlist but not yet in self.circuit
-        and creates them.
+        and creates them. Elements are created with basic properties. All
+        attributes are checked/assigned in the _update_elements() function
+        called after _create_elements().
         """
         part_ids = [e.part_id for e in self.circuit]
         new_elems = [e for e in self.netlist.elements if e.name not in part_ids]
-        for element in new_elems:
+        for elem in new_elems:
             # transistor elements (ekv or mosq)
-            if element.name[0] == 'm':
-                # TODO: Add support for 'm' and 'n' params as well. However
-                # they are not supported in ahkab netlist syntax.
-                self.circuit.add_mos(element.name, *map(str, element.nodes),
-                                     w=element.param('w'), l=element.param('l'),
-                                     model_label=element.value)
+            if elem.name[0] == 'm':
+                self.circuit.add_mos(elem.name, *map(str, elem.nodes),
+                                     w=elem.param('w'), l=elem.param('l'),
+                                     model_label=elem.value,
+                                     m=1 if elem.param('m') is None else elem.param('m'),
+                                     n=1 if elem.param('n') is None else elem.param('n'))
+            
             # diode element
-            elif element.name[0] == 'd':
-                self.circuit.add_diode(element.name, *map(str, element.nodes),
-                                       model_label=element.value,
-                                       Area=element.param('area'),
-                                       T=element.param('t'),
-                                       off=(element.param('off') is True))
+            elif elem.name[0] == 'd':
+                self.circuit.add_diode(elem.name, *map(str, elem.nodes),
+                                       model_label=elem.value,
+                                       Area=elem.param('area'),
+                                       T=elem.param('t'),
+                                       off=(elem.param('off') is True))
+            
             # switch elements
-            elif element.name[0] == 's':
-                self.circuit.add_switch(element.name, *map(str, element.nodes),
-                                        *map(str, element.passive_nodes),
-                                        model_label=element.value)
-            # independent voltage source
-            elif element.name[0] == 'v':
-                self.circuit.add_vsource(element.name, *map(str, element.nodes),
-                                         element.value, **element.kwargs)
-            # independent current source
-            elif element.name[0] == 'i':
-                pass
+            elif elem.name[0] == 's':
+                self.circuit.add_switch(elem.name, *map(str, elem.nodes),
+                                        *map(str, elem.passive_nodes),
+                                        model_label=elem.value)
+            
+            # independent voltage/current source
+            elif elem.name[0] in ('v', 'i'):
+                if elem.name[0] == 'v':
+                    func = self.circuit.add_vsource
+                else:
+                    func = self.circuit.add_isource
+                # created w/ basic properties. All attributes assigned later.
+                func(elem.name, *map(str, elem.nodes), 0, 0, None)
+            
             # voltage controlled sources
-            elif element.name[0] in ('e', 'g'):
-                pass
+            elif elem.name[0] in ('e', 'g'):
+                if elem.name[0] == 'e':
+                    func = self.circuit.add_vcvs
+                else:
+                    func = self.circuit.add_vccs
+                func(elem.name, *map(str, elem.nodes), *map(str, elem.passive_nodes),
+                        elem.value)
+            
             # current controlled sources
-            elif element.name[0] in ('f', 'h'):
-                pass
+            elif elem.name[0] in ('f', 'h'):
+                if elem.name[0] == 'f':
+                    func = self.circuit.add_cccs
+                else:
+                    func = self.circuit.add_ccvs
+                func(elem.name, *map(str, elem.nodes), elem.value[0], elem.value[1])
+            
             # resistors
-            elif element.name[0] == 'r':
-                self.circuit.add_resistor(element.name, *map(str, element.nodes),
-                                          element.value)
+            elif elem.name[0] == 'r':
+                self.circuit.add_resistor(elem.name, *map(str, elem.nodes),
+                                          elem.value)
+            
             # capacitors
-            elif element.name[0] == 'c':
-                self.circuit.add_capacitor(element.name, *map(str, element.nodes),
-                                          element.value)
+            elif elem.name[0] == 'c':
+                self.circuit.add_capacitor(elem.name, *map(str, elem.nodes),
+                                          elem.value)
+            
             # inductors
-            elif element.name[0] == 'l':
-                self.circuit.add_inductor(element.name, *map(str, element.nodes),
-                                          element.value)
+            elif elem.name[0] == 'l':
+                self.circuit.add_inductor(elem.name, *map(str, elem.nodes),
+                                          elem.value)
 
 
     def _remove_elements(self):
