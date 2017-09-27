@@ -23,6 +23,7 @@ class Block:
     A block is comprised of elements and nested block definitions (Block).
     Instances of block definitions are treated as elements and represented by
     BlockInstance class which is a subclass of Element.
+    Blocks (except for the top level Netlist) do not contain directives.
 
     Args:
         name (str): the name of the block.
@@ -354,8 +355,10 @@ class Block:
         Args:
             elem (Element/str): Element instance / name to be removed.
         """
+        if isinstance(elem, str):   # convert string id to Element instance
+            elem = self.element(elem)
         if elem in self.elements:
-            self.elements.remove(elem)
+            self.elements.remove(elem)    
             for node in set(elem.nodes):
                 if self.graph.get(node):
                     self.graph[node].remove(elem)

@@ -168,9 +168,9 @@ class Simulator:
         Changes in the modified netlist are applied to the ahkab.Circuit
         representation used by the external simulation library. Changes can be:
 
-        * Additions/removals of circuit elements/ block instances,
+        * Additions/removals of circuit elements,
         * Modifications in element parameters,
-        * NOT new models/block definitions. They should be included in the
+        * NOT directives/models/block definitions. They should be included in the
           original netlist provided to Simulator.
 
         Args:
@@ -207,20 +207,21 @@ class Simulator:
                     element.ng = node_dict[str(elem.nodes[1])]
                     element.n2 = node_dict[str(elem.nodes[2])]
                     element.nb = node_dict[str(elem.nodes[3])]
-                    element.ports = ((element.n1, element.nb), (
-                        element.ng, element.nb), (element.n2, element.nb))
-                    element.model_id = elem.value
                     element.device.W = elem.param('w')
                     element.device.L = elem.param('l')
                     element.device.M = 1 if elem.param('m') is None else elem.param('m')
                     element.device.N = 1 if elem.param('n') is None else elem.param('n')
                     try:
-                        element.device.ekv_model = self.circuit.models[elem.value]
+                        element.ports = ((element.n1, element.nb), (
+                            element.ng, element.n2), (element.n2, element.nb))
+                        element.ekv_model = self.circuit.models[elem.value]
                         element.dc_guess = [element.ekv_model.VTO * (0.1) * element.ekv_model.NPMOS,
                                             element.ekv_model.VTO * (1.1) * element.ekv_model.NPMOS,
                                             0]
                     except AttributeError:
-                        element.device.mosq_model = element.circuit.models[elem.value]
+                        element.ports = ((element.n1, element.nb), (
+                            element.ng, element.n2), (element.nb, element.n2))
+                        element.mosq_model = self.circuit.models[elem.value]
                         element.dc_guess = [element.mosq_model.VTO*0.4*element.mosq_model.NPMOS,
                                             element.mosq_model.VTO*1.1*element.mosq_model.NPMOS,
                                             0]
@@ -234,7 +235,8 @@ class Simulator:
                     element.off = elem.param('off') == 'true'
                     element.device.AREA = 1.0 if elem.param('area') is None else\
                         elem.param('area')
-                    element.device.T = elem.param('t')
+                    element.device.T = ahkab.constants.T if elem.param('t') is None\
+                        else elem.param('t')
 
                 # switch elements
                 elif element.part_id[0] == 's':
@@ -324,7 +326,7 @@ class Simulator:
                                      model_label=elem.value,
                                      m=1 if elem.param('m') is None else elem.param('m'),
                                      n=1 if elem.param('n') is None else elem.param('n'))
-            
+       
             # diode element
             elif elem.name[0] == 'd':
                 self.circuit.add_diode(elem.name, *map(str, elem.nodes),
@@ -332,13 +334,13 @@ class Simulator:
                                        Area=elem.param('area'),
                                        T=elem.param('t'),
                                        off=(elem.param('off') is True))
-            
+           
             # switch elements
             elif elem.name[0] == 's':
                 self.circuit.add_switch(elem.name, *map(str, elem.nodes),
                                         *map(str, elem.passive_nodes),
                                         model_label=elem.value)
-            
+
             # independent voltage/current source
             elif elem.name[0] in ('v', 'i'):
                 if elem.name[0] == 'v':
@@ -347,7 +349,7 @@ class Simulator:
                     func = self.circuit.add_isource
                 # created w/ basic properties. All attributes assigned later.
                 func(elem.name, *map(str, elem.nodes), 0, 0, None)
-            
+
             # voltage controlled sources
             elif elem.name[0] in ('e', 'g'):
                 if elem.name[0] == 'e':
@@ -355,8 +357,8 @@ class Simulator:
                 else:
                     func = self.circuit.add_vccs
                 func(elem.name, *map(str, elem.nodes), *map(str, elem.passive_nodes),
-                        elem.value)
-            
+                     elem.value)
+
             # current controlled sources
             elif elem.name[0] in ('f', 'h'):
                 if elem.name[0] == 'f':
@@ -364,17 +366,17 @@ class Simulator:
                 else:
                     func = self.circuit.add_ccvs
                 func(elem.name, *map(str, elem.nodes), elem.value[0], elem.value[1])
-            
+
             # resistors
             elif elem.name[0] == 'r':
                 self.circuit.add_resistor(elem.name, *map(str, elem.nodes),
                                           elem.value)
-            
+
             # capacitors
             elif elem.name[0] == 'c':
                 self.circuit.add_capacitor(elem.name, *map(str, elem.nodes),
-                                          elem.value)
-            
+                                           elem.value)
+
             # inductors
             elif elem.name[0] == 'l':
                 self.circuit.add_inductor(elem.name, *map(str, elem.nodes),

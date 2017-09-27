@@ -385,7 +385,7 @@ def test_netlist_class():
     os.remove('test.net')
 
 
-@test
+#@test
 def test_simulator_class():
     """Test circuit simulator"""
 
@@ -402,6 +402,8 @@ def test_simulator_class():
            's1 n1 n2 n1 0 switch',
            '.ic V(n1)=10',
            '.model sw switch von=6 voff=5 ron=1 roff=1e6',
+           '.model ekv xsistor type=n',
+           '.model diode dd',
            '.end')
     ninstance = Netlist('Test', netlist=net)
 
@@ -412,10 +414,17 @@ def test_simulator_class():
             cap = netlist.element('s1') # reversing state = 1 changes
             cap.nodes[1] = Node('n2')
             netlist.add(Resistor(definition='R1 n2 n3 1e3'))
+            netlist.add(Diode(definition='d1 n3 0 dd'))
+        elif state == 3:                # adding an NMOS device
+            netlist.add(Transistor(definition='M1 n3 n1 0 0 xsistor w=2e-4 l=5e-5'))
+            netlist.element('d1').param('area', 1e-1)
+        elif state == 4:                # removing NMOS device
+            netlist.remove('m1')
+            netlist.remove('d1')
         return netlist
 
     # Test 1: Instantiation and preprocessing
-    sim = Simulator(env=ninstance, timestep=1e-3, state_mux=state_mux)
+    sim = Simulator(env=ninstance, timestep=1e-6, state_mux=state_mux)
     assert sim.ic == {'v(n1)':'10'}, 'Initial conditions incorrectly parsed.'
 
     # Test 2: Running simulation
@@ -426,9 +435,28 @@ def test_simulator_class():
 
     # Test 3: Switching states and running simulation
     # TODO: Check for correct Netlist -> ahkab.Circuit conversion
-    for state in (1, 2):
-        sim.set_state(state, None)
-        sim.run(duration=1e-3)
+    sim.set_state(1, None)
+    assert len([e for e in sim.circuit if e.part_id == 'r1']) == 0, \
+        "Element deletion not propagated to ahkab circuit."
+    sim.run(duration=1e-3)
+    sim.set_state(2, None)
+    assert len([e for e in sim.circuit if e.part_id == 'r1']) == 1, \
+        "Element creation not propagated to ahkab circuit."
+    assert len([e for e in sim.circuit if e.part_id == 'd1']) == 1, \
+        "Element creation not propagated to ahkab circuit."
+    sim.run(duration=1e-3)
+    sim.set_state(3, None)
+    assert len([e for e in sim.circuit if e.part_id == 'm1']) == 1, \
+        "Element creation not propagated to ahkab circuit."
+    diodes = [e for e in sim.circuit if e.part_id == 'd1']
+    assert diodes[0].device.AREA == 1e-1, "Element attributes not updated."
+    sim.run(duration=1e-3)
+    sim.set_state(4, None)
+    assert len([e for e in sim.circuit if e.part_id == 'm1']) == 0, \
+        "Element deletion not propagated to ahkab circuit."
+    assert len([e for e in sim.circuit if e.part_id == 'd1']) == 0, \
+        "Element deletion not propagated to ahkab circuit."
+    sim.run(duration=1e-3)
 
 
 
