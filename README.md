@@ -11,6 +11,10 @@ A Reinforcement Learning library.
 
 Reinforcement Learning with a focus non-stationary environments.
 
+| <img src="/img/topology.png" alt="RL on a topology with faults" width="420"/> | <img src="/img/tanks.gif" alt="Visualization of a fuel tank system modelled as a circuit" width="420"/> |
+|:---:|:---:|
+|RL on a topology with faults. | Visualization of a fuel tank system modelled as a circuit. |
+
 Features include:
 
 * A modelling framework based on Netlist syntax and a circuit simulator. An
