@@ -319,7 +319,7 @@ class QLearner:
         return self._policy(state)
 
 
-    def next_state(self, state, action, **kwargs):
+    def next_state(self, state, action, stepsize=1, **kwargs):
         """
         Returns the index of the next state based on the current state and
         action taken.
@@ -327,11 +327,14 @@ class QLearner:
         Args:
             state (int): Index of current state in [r|q]matrix.
             action (int): Index of action taken in [r|q]matrix.
+            stepsize (int): Number of steps to take action for. Default=1.
 
         Returns:
             int representing index of next state in [r|q] matrix.
         """
-        return self._next_state(state, action)
+        for _ in range(stepsize):
+            state = self._next_state(state, action)
+        return state
 
 
     def reward(self, cstate, action, nstate):

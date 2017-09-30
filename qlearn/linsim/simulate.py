@@ -26,6 +26,10 @@ class Simulator:
     Simulator.run() accepts state/action vectors to modify the environment and
     returns a result dict, or the next state vector.
 
+    Note: Changes to the netlist can be additions/deletions of elements,
+    changing parameters. Currently subcircuit and model definition changes are
+    not supported.
+
     Note: The netlist should not have inline initial conditions in element
     definitions. Instead they should be provided in special .ic directives or as
     a dict to this class. Inline initial conditions will be ignored.
