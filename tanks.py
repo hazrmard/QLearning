@@ -18,6 +18,7 @@ Usage:
 
 > python tanks.py --help
 > python tanks.py -c 1e-4  --seed 1001 -l tankweights.dat -t 3 -s 3 -m 6 -i 4 4 4 4 4 4 0 -u 4
+> python tanks.py -c 1e-4  --seed 1001 -f tankweights.dat -t 2 -s 3 -m 6 -i 4 4 4 4 4 4 0 -u 3
 
 Default model and learning parameters can be changed below. Some of them
 can be tuned from the command-line.
@@ -227,7 +228,7 @@ if not ARGS.disable:
         input('\nPress Enter to begin learning.')
         print('Learning episodes: %5d out of %d states' %
             (int(ARGS.coverage * STATES.num_states), STATES.num_states))
-        LEARNER.learn(coverage=ARGS.coverage, verbose=True)
+        LEARNER.learn(coverage=ARGS.coverage)
         if ARGS.file != '':
             utils.save_matrix(LEARNER.weights, ARGS.file)
     else:
@@ -265,7 +266,7 @@ def status():
 
     if COUNT % ARGS.interval == 0 and not ARGS.disable: # re-learn at interval steps
         episodes = LEARNER.neighbours(svec)
-        LEARNER.learn(episodes=episodes, verbose=True)
+        LEARNER.learn(episodes=episodes)
 
     COUNT += 1
     svec[:] = LEARNER.next_state(svec, avec)        # compute new results

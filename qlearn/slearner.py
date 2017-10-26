@@ -94,20 +94,21 @@ class SLearner(FLearner):
 
     def __init__(self, reward, simulator, stateconverter, actionconverter, goal,
                  func, funcdim, dfunc, lrate=0.25, discount=1, exploration=0,
-                 policy='uniform', depth=None, steps=1, seed=None, **kwargs):
+                 policy='uniform', depth=None, steps=1, seed=None,
+                 stepsize=lambda x:-1, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
             self.random = np.random.RandomState(seed)
 
         self.simulator = simulator
-        # self.kwargs = kwargs
 
         self.lrate = lrate
         self.discount = discount
         self.exploration = exploration
         self.depth = stateconverter.num_states if depth is None else depth
         self.steps = steps
+        self.stepsize = stepsize
 
         self.funcdim = funcdim
         self.func = func

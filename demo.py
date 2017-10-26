@@ -273,7 +273,7 @@ if __name__ == '__main__':
     # Loading weights or learning new policy
     if args.load == '':
         input('\nPress Enter to begin learning.')
-        learner.learn(coverage=args.coverage, verbose=True, depth=args.maxdepth)
+        learner.learn(coverage=args.coverage, depth=args.maxdepth)
         if args.file != '':
             utils.save_matrix(learner.weights, args.file)
     else:

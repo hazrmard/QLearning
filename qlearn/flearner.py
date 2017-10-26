@@ -126,7 +126,7 @@ class FLearner(QLearner):
     def __init__(self, rmatrix, stateconverter, actionconverter, goal, func,
                  funcdim, dfunc, tmatrix=None, lrate=0.25, discount=1,
                  exploration=0, policy='uniform', mode='offline', depth=None,
-                 steps=1, seed=None, **kwargs):
+                 steps=1, seed=None, stepsize=lambda x: 1, **kwargs):
         super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
                          policy, mode, depth, steps, seed, **kwargs)
         self.stateconverter = stateconverter
@@ -203,14 +203,3 @@ class FLearner(QLearner):
         Resets weights to initial values.
         """
         self.weights = np.ones(self.funcdim)
-
-
-    def print_diagnostic(self, percent):
-        """
-        Prints a diagnostic message each learning episode.
-
-        Args:
-            percent (int): Percentage denoting progress of learn()
-        """
-        print('\rEpisodes: %5d%% progress, w: ' % (percent,),
-              *['{0:9.2e}'.format(w) for w in self.weights], end='')

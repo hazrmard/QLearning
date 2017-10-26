@@ -15,8 +15,7 @@ All learning algorithms should be able to learn from:
 import numpy as np
 
 
-def variablenstep(self, episodes=None, coverage=1., ep_mode=None, actions=(),
-                  depth=-1, verbose=False, stepsize=lambda x: -1):
+def variablenstep(self, episodes, actions):
     """
     Begins learning procedure over all (state, action) pairs. Calculates errors
     between last and current estimation of q-value and calls self.update to
@@ -31,25 +30,11 @@ def variablenstep(self, episodes=None, coverage=1., ep_mode=None, actions=(),
             subclass.
         episodes (list/generator): States to begin learning episodes from.
             Defaults to self.episodes().
-        coverage (float): Fraction of total states to start episodes from.
-            Default=1 i.e. all state are covered by episodes().
-        ep_mode (str): Order in which to iterate through states. See
-            episodes() mode argument.
         verbose (bool): Whether to print diagnostic messages.
-        stepsize (func): A function that accepts a state and returns a
-            number representing the step size of the next action. The stepsize is
-            forwarded as a 'stepsize' keyword argument to self.next_state. Used
-            by SLearner for variable simulation times.
         OR
         actions (list/tuple): A list of actions to take for each starting state
             provided in episodes. Optional.
-
-        depth (int): Number of iterations allowed per episode. Defaults to
-            self.depth which in turn defaults to self.num_states
     """
-    episodes = episodes if episodes is not None else\
-                self.episodes(coverage=coverage, mode=ep_mode)
-    depth = self.depth if depth == -1 else depth
 
     for i, state in enumerate(episodes):
         if self.mode == self.__class__.OFFLINE:
@@ -73,7 +58,7 @@ def variablenstep(self, episodes=None, coverage=1., ep_mode=None, actions=(),
         Q.append(self.qvalue(state, A[-1]))
 
         # Loop from start of episode until the state before terminal state
-        while tau <= T-1 and t < depth:
+        while tau <= T-1 and t < self.depth:
             # The algorithm looks n-steps ahead of the state in the episode
             # being updated. If a terminal state comes before n-steps, it
             # stops looking ahead.
@@ -81,7 +66,7 @@ def variablenstep(self, episodes=None, coverage=1., ep_mode=None, actions=(),
                 action = A[-1]                          # current action
                 state = S[-1]                           # current state
                 naction = self.next_action(state)       # next action
-                nstate = self.next_state(state, action, stepsize=stepsize(state)) # next state
+                nstate = self.next_state(state, action, stepsize=self.stepsize(state)) # next state
                 cqvalue = self.qvalue(state, action)    # current Q-value
                 nqvalue = self.qvalue(nstate, naction)  # next Q-value
 
@@ -121,12 +106,3 @@ def variablenstep(self, episodes=None, coverage=1., ep_mode=None, actions=(),
                     E = self.discount * E * pi[k+1]
                 self.update(S[tau], A[tau], self.qvalue(S[tau], A[tau]) - G)
             t += 1
-
-        if verbose:
-            if hasattr(episodes, '__len__'):
-                self.print_diagnostic((i+1) * 100 / len(episodes))
-            else:
-                self.print_diagnostic((i+1) * 100 / int(coverage * self.num_states))
-
-    if verbose:
-        print()

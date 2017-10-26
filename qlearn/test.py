@@ -170,6 +170,7 @@ def qlearner_testbench():
     discount = 1
     steps = 3
     start = (0, 0)
+    stepsize = lambda x: 1 if x % 2 == 0 else 2
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, mode=QLearner.ONLINE, wrap=True)
@@ -197,7 +198,7 @@ def qlearner_testbench():
 
     # Test 3: Pathfinding
     t.learner.reset()
-    t.learner.learn(coverage=coverage, ep_mode=mode)
+    t.learner.learn(coverage=coverage, ep_mode=mode, stepsize=stepsize)
     t.learner.exploration = exploration
     res = t.episode(start=start, interactive=False)
     assert res == t.path, 'Returned list not equal to stored path.'
@@ -263,7 +264,6 @@ def slearner_testbench():
     steps = 3
     start = (2, 2)
     funcdim = 7
-    stepsize = 1e-2
     def dfunc(s, a, w):
         return np.array([s[0]*a[0]/20, s[1]*a[1]/20, s[0]**2/100, s[1]**2/100,
                          a[0]**2/4, a[1]**2/4, 1])
@@ -272,12 +272,12 @@ def slearner_testbench():
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=SLearner, lrate=lrate, policy=policy,
-                  discount=discount, exploration=exploration, func=func, funcdim=7,
-                  dfunc=dfunc, steps=steps, stepsize=stepsize, max_prob=0.4)
+                  discount=discount, exploration=exploration, func=func,
+                  funcdim=funcdim, dfunc=dfunc, steps=steps, max_prob=0.4)
 
     # Test 2: S learning
     assert t.learner.depth == t.num_states, 'Learning depth not set.'
-    t.learner.learn(coverage=coverage)
+    t.learner.learn(coverage=coverage, stepsize=lambda x: 1e-2)
     res = t.episode(start=start, interactive=False)
     assert np.array_equal(res, t.path), 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'

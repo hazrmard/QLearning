@@ -79,6 +79,11 @@ class QLearner:
             to number of states.
         steps (int): Number of steps (state transitions) to look ahead to
             calculate next estimate of value of state, action pair. Default=1.
+        stepsize (func): A function that accepts a state and returns a
+            number representing the step size of the next action. The stepsize is
+            forwarded as a 'stepsize' keyword argument to self.next_state. Used
+            by SLearner for variable simulation times. Optional. Can be used
+            to convey other information to an overridden next_state function.
         seed (int): A seed for all random number generation in instance. Default
             is None.
 
@@ -99,7 +104,7 @@ class QLearner:
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
                  exploration=0, policy='uniform', mode='offline', depth=None,
-                 steps=1, seed=None, **kwargs):
+                 steps=1, seed=None, stepsize=lambda x:1, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -111,12 +116,15 @@ class QLearner:
         self._goals = set()
         self._next_state = None
         self._policy = None
+
         self.depth = depth  # set later in set_rq_matrix() if None
         self.steps = steps
         self.lrate = lrate
         self.discount = discount
         self.exploration = exploration
+        self.stepsize = stepsize
         self._action_param = {}     # helper parameter for GREEDY/SOFTMAX policies
+
         self._avecs = []            # for subclasses using action vectors
 
         self.set_rq_matrix(rmatrix)
@@ -385,8 +393,7 @@ class QLearner:
             return self.qmatrix[state]
 
 
-    def learn(self, episodes=None, coverage=1., ep_mode=None, actions=(),
-              depth=-1, verbose=False, stepsize=lambda x: -1):
+    def learn(self, episodes=None, coverage=1., ep_mode=None, actions=(), **kwargs):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
@@ -401,31 +408,21 @@ class QLearner:
                 Default=1 i.e. all state are covered by episodes().
             ep_mode (str): Order in which to iterate through states. See
                 episodes() mode argument.
-            stepsize (func): A function that accepts a state and returns a
-                number representing the step size of the next action. The stepsize is
-                forwarded as a 'stepsize' keyword argument to self.next_state. Used
-                by SLearner for variable simulation times. Optional. Can be used
-                to convey other information to an overridden next_state function.
-            verbose (bool): Whether to print diagnostic messages.
             OR
             actions (list/tuple): A list of actions to take for each starting state
                 provided in episodes. Optional.
-
-            depth (int): Number of iterations allowed per episode. Defaults to
-                self.num_states
+            
+            **kwargs: Any learning parameters (lrate, depth, stepsize, mode, steps,
+                discount, exploration) which are stored.
         """
-        variablenstep(self, episodes, coverage, ep_mode, actions, depth, verbose,
-                      stepsize)
+        for key, val in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, val)
+        
+        episodes = episodes if episodes is not None else\
+                self.episodes(coverage=coverage, mode=ep_mode)
 
-
-    def print_diagnostic(self, percent):
-        """
-        Prints a diagnostic message each learning episode. Called by learn()
-
-        Args:
-            percent (int): Percentage denoting progress of learn()
-        """
-        print('\rEpisodes: %5d%% progress, w: ' % (percent,), end='')
+        variablenstep(self, episodes=episodes, actions=actions)
 
 
     def update(self, state, action, error):
@@ -451,7 +448,7 @@ class QLearner:
         Args:
             state (int): Index of current state in [r|q]matrix.
             kwargs: Other keyword arguments passed to learn() during exploration
-                phase for e.g. stepsize
+                phase for e.g. stepsize. Learning paramaters are stored.
 
         Returns:
             Index of action to take (column) in [r|q]matrix.
