@@ -163,14 +163,14 @@ def qlearner_testbench():
     # set up
     size = 10
     mode = 'bfs'
-    coverage = 0.5
-    exploration = 0.25
+    coverage = 1
+    exploration = 0
     seed = 40000
-    lrate = 0.25
+    lrate = 0.5
     discount = 1
-    steps = 3
+    steps = 10
     start = (0, 0)
-    stepsize = lambda x: 1 if x % 2 == 0 else 2
+    stepsize = lambda x: 1
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, mode=QLearner.ONLINE, wrap=True)
@@ -220,8 +220,8 @@ def flearner_testbench():
     coverage = 0.25
     exploration = 0.25
     seed = 1000
-    lrate = 1e-1
-    discount = 1e-2
+    lrate = 0.4
+    discount = 0.5
     steps = 3
     start = (3, 4)
     funcdim = 7

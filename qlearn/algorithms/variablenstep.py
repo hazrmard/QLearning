@@ -66,7 +66,8 @@ def variablenstep(self, episodes, actions):
                 action = A[-1]                          # current action
                 state = S[-1]                           # current state
                 naction = self.next_action(state)       # next action
-                nstate = self.next_state(state, action, stepsize=self.stepsize(state)) # next state
+                step = self.stepsize(state)             # size of lookahead
+                nstate = self.next_state(state, action, stepsize=step) # next state
                 cqvalue = self.qvalue(state, action)    # current Q-value
                 nqvalue = self.qvalue(nstate, naction)  # next Q-value
 
@@ -74,7 +75,7 @@ def variablenstep(self, episodes, actions):
                 S.append(nstate)
                 Q.append(nqvalue)
 
-                reward = self.reward(state, action, nstate)
+                reward = self.reward(state, action, nstate, stepsize=step)
                 aprobs = self.a_probs(nstate)
                 # For QLearner subclasses with vector representation,
                 # naction cannot be used as an index

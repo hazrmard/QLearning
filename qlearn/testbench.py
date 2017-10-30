@@ -109,10 +109,7 @@ class TestBench:
         # plotting variables
         self.__class__.plot_num += 1
         self.fig_num = self.__class__.plot_num
-        # self.fig = None
-        # self.topo_ax = None
-        # self.topo_surface = None
-        # self.path_line = None
+        self.fig = None
 
         self.create_topology(method)
         self.tmatrix, self.rmatrix, self.goals = self.generate_trg(wrap)
@@ -146,7 +143,6 @@ class TestBench:
             self.learner = SLearner(reward=reward, simulator=sim, goal=goal,
                                     stateconverter=sflags, actionconverter=aflags,
                                     seed=self.seed, **kwargs)
-
         elif learner is None:
             self.learner = None
         else:
@@ -259,7 +255,7 @@ class TestBench:
         return path
 
 
-    def show_topology(self, showfield=False, **paths):
+    def show_topology(self, showfield=False, showlegend=False, **paths):
         """
         Draws a surface plot of the topology, marks goal states, and any episode
         up to its current progress.
@@ -272,13 +268,13 @@ class TestBench:
                 <PATH_NAME>=[LIST OF (y, x) COORDINATE PAIRS]
         """
         # Set up figure and axes
-        fig = plt.figure(self.fig_num)
+        self.fig = plt.figure(self.fig_num)
         if showfield:
-            topo_ax = fig.add_subplot(121, aspect='equal', projection='3d')
-            field_ax = fig.add_subplot(122, aspect='equal')
+            topo_ax = self.fig.add_subplot(121, aspect='equal', projection='3d')
+            field_ax = self.fig.add_subplot(122, aspect='equal')
             field_ax.invert_yaxis()
         else:
-            topo_ax = fig.add_subplot(111, projection='3d')
+            topo_ax = self.fig.add_subplot(111, projection='3d')
         path_line = []
         topo_ax.invert_yaxis()
         # Plot 3d topology surface
@@ -289,6 +285,9 @@ class TestBench:
         # Plot optimal action field
         if showfield:
             vals, inds = list(zip(*[self.learner.value(s) for s in range(self.num_states)]))
+            # v_i = np.array([self.learner.value(s) for s in range(self.num_states)])
+            # vals = v_i[:, 0]
+            # inds = v_i[:, 1]
             vals = np.abs((vals - min(vals)))
             vals = vals / max(vals)
             inds = np.array(inds, dtype=int)
@@ -323,11 +322,11 @@ class TestBench:
             field_ax.set_xlabel('X')
             field_ax.set_ylabel('Y')
             field_ax.set_title('Optimal Action Field')
-        if len(paths) > 0:
+        if len(paths) > 0 and showlegend:
             topo_ax.legend()
         # Display figure
         plt.show(block=True)
-        fig.clear()
+        self.fig.clear()
         plt.close(self.fig_num)
 
 
@@ -396,8 +395,9 @@ class TestBench:
                 elif tmatrix[i, j] in goals:
                     rmatrix[i, j] = reward_lim
                 else:
-                    rmatrix[i, j] = self.topology[coords[0], coords[1]] \
-                                    - self.topology[next_coord[0], next_coord[1]]
+                    rmatrix[i, j] = (self.topology[coords[0], coords[1]] \
+                                    - self.topology[next_coord[0], next_coord[1]]) \
+                                    # / reward_lim - 1
         return (tmatrix, rmatrix, goals)
 
 
@@ -426,4 +426,4 @@ class TestBench:
         Returns:
             A 2 element tuple of [row, column] coordinates.
         """
-        return (int(state/self.size) % self.size, state % self.size)
+        return (int(state/self.size), state % self.size)

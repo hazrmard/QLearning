@@ -13,17 +13,18 @@ All learners expose the following interface:
 
 * Instantiation with relevant parameters any any number of positional and
     keyword arguments.
-* reward(state, action, next_state) which returns the reward for taking an
+* reward(state, action, next_state, **kwargs) which returns the reward for taking an
     action from some state.
-* next_state(state, action) which returns the next state based on the current
-    state and action.
+* next_state(state, action, **kwargs) which returns the next state based on the
+    current state and action.
+* neighbours (state) which returns states adjacent to provided state.
 * value(state) which returns the utility of a state and the following action
     what leads to that utility.
 * qvalue(state, action) which returns value of a state-action pair, or an array
     of values of all actions from a state if action is not specified.
-* learn() which runs over multiple episodes to populate a utility function
-    or matrix.
-* recommend(state) which recommends an action based on the learned values
+* learn(episodes, actions, **kwargs) which runs over multiple episodes to populate
+    a utility function or matrix.
+* recommend(state, **kwargs) which recommends an action based on the learned values
     depending on the exploration vs. exploitation setting of the learner.
 * reset() which returns the value function/matrix to its initial state while
     keeping any learning parameters provided at instantiation.
@@ -167,7 +168,7 @@ class SLearner(FLearner):
             yield self.stateconverter.decode(self.random.choice(self.num_states))
 
 
-    def reward(self, svec, avec, next_svec):
+    def reward(self, svec, avec, next_svec, **kwargs):
         return self._reward(svec, avec, next_svec)
 
 

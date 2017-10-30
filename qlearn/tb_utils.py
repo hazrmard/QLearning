@@ -124,7 +124,8 @@ def fault_algorithm(iterations, size, random):
                 topology[y, x] += disp[i] \
                                         if -a[i]*(x-cx) + b[i]*(y-cy) > 0 \
                                         else -disp[i]
-    return topology
+    topology = topology - np.amin(topology)
+    return topology / np.amax(topology)
 
 
 def abs_cartesian(topology, source, target):

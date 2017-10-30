@@ -6,7 +6,7 @@ policy for the system using off-policy temporal difference learning.
 
     Value(state, action) = Q-Matrix[state, action]
 
-    Policy(action | state) = max(Value(state, a) | a => all possible actions)
+    Policy(action | state) = max over a(Value(state, a) | a => all possible actions)
 
 The learning process can either be online or offline. In online learning, the
 action selection policy is updated every time a new value is computed. In offline
@@ -23,17 +23,18 @@ All learners expose the following interface:
 
 * Instantiation with relevant parameters any any number of positional and
     keyword arguments.
-* reward(state, action, next_state) which returns the reward for taking an
+* reward(state, action, next_state, **kwargs) which returns the reward for taking an
     action from some state.
-* next_state(state, action) which returns the next state based on the current
-    state and action.
+* next_state(state, action, **kwargs) which returns the next state based on the
+    current state and action.
+* neighbours (state) which returns states adjacent to provided state.
 * value(state) which returns the utility of a state and the following action
     what leads to that utility.
 * qvalue(state, action) which returns value of a state-action pair, or an array
     of values of all actions from a state if action is not specified.
-* learn() which runs over multiple episodes to populate a utility function
-    or matrix.
-* recommend(state) which recommends an action based on the learned values
+* learn(episodes, actions, **kwargs) which runs over multiple episodes to populate
+    a utility function or matrix.
+* recommend(state, **kwargs) which recommends an action based on the learned values
     depending on the exploration vs. exploitation setting of the learner.
 * reset() which returns the value function/matrix to its initial state while
     keeping any learning parameters provided at instantiation.
@@ -345,7 +346,7 @@ class QLearner:
         return state
 
 
-    def reward(self, cstate, action, nstate):
+    def reward(self, cstate, action, nstate, stepsize=1):
         """
         Returns the reward of taking action from state.
 
@@ -353,11 +354,16 @@ class QLearner:
             cstate (int): Index of current state in [r|q]matrix (row index).
             action (int): Index of action to be taken from state (column index).
             nstate (int): Index of next state in [r|q]matrix.
+            stepsize (int): Number of steps to take action for. Default=1.
 
         Returns:
             A float indicating the reward.
         """
-        return self.rmatrix[cstate, action]
+        reward = 0
+        for _ in range(stepsize):
+            reward = reward +  self.rmatrix[cstate, action]
+            cstate = self.next_state(cstate, action, stepsize=1)
+        return reward
 
 
     def value(self, state):
