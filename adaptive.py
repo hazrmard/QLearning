@@ -14,7 +14,8 @@ Usage:
     > python adaptive.py
     > python .\adaptive.py --seed 40000 -f 0.2 -m 20 -a 0 0 -e 0.2 -s 10 -p softmax -r 0.75 -d 1
     > python .\adaptive.py --seed 40000 -f 0 -m 20 -a 0 0 -e 0.2 -s 10 -p softmax -r 0.01 -d 1 --usefunc
-    > python .\adaptive.py -c 0.5 --seed 40000 -f 0.2 -m 20 -a 0 0 -e 0.2 -s 10 -p softmax -r 0.01 -d 0.1 --usefunc --hierarchical
+    > python .\adaptive.py --seed 40000 -f 0.2 -m 20 -a 0 0 -e 0.2 -s 10 -p softmax -r 0.01 -d 0.1 --usefunc
+    > python .\adaptive.py --seed 40000 -f 0.2 -m 20 -a 0 0 -e 0.2 -s 10 -p softmax -r 0.1 -d 0.9 --usefunc --hierarchical --faultreset
 
 Requires:
     numpy,
@@ -46,7 +47,7 @@ class ModelPredictiveController(QLearner):
         An MPC has no learning phase.
         """
         pass
-    
+  
     def recommend(self, state, **kwargs):
         """
         Implements the receding horizon online supervision algorithm by
@@ -72,6 +73,8 @@ class ModelPredictiveController(QLearner):
                         min_dist = self.dmap[nstate]
                         optimal = node
         # Trace back to first action
+        if optimal is None: # i.e. starting state is closest state
+            return None
         while optimal[0] is not None:
             action = optimal[3]
             optimal = optimal[0]
@@ -79,33 +82,41 @@ class ModelPredictiveController(QLearner):
 
 
 
-def adaptive_path(tb, start, fault):
+def adaptive_path(tb, start, fault, reset=False):
     """
     Calculates path from start to a goal state while adapting to intermittent
     faults in the environment. At occurance of a fault, relearns policy in the
     vicinity of the state.
+    Proceeds as follows:
 
     Args:
         tb (TestBench): A TestBench instance with learner set up.
         start (tuple): The [Y, X] coordinates to start from.
         fault (func): A function that modifies the tb.learner's environment
             and returns True/False to indicate if a fault has occurred.
+        reset (bool): Whether to reset value function after fault.
 
     Returns:
-        A dict of the form {'001': [coords], ...'SEGMENT_NUMBER': List of coords}.
-        Each segment is the path traversed in between faults,
-        The coordinate of the final state reached,
-        Number of iterations (i.e. number of points traversed).
-        True if goal reached, else False
+        - A dict of the form {'001': [coords], ...'SEGMENT_NUMBER': List of coords},
+        each segment is the path traversed in between faults,
+        - A list of states traversed equal to the path length limit. If goal reach
+        earlier, the rest is padded with the last state.
+        - The coordinate of the final state reached,
+        - Number of iterations (i.e. number of points traversed).
+        - True if goal reached, else False
     """
-    segment = [start]
-    i = 0   # segments completed
-    n = 0   # iterations completed
-    segments = {}
     state = tb.coord2state(start)
+    segment = [start]           # list of coords
+    traversed = [state]         # list of corresponding state numbers
+    i = 0                       # segments completed
+    n = 0                       # iterations completed
+    segments = {}               # path segments in between faults
+    tb.learner.learn(episodes=(state, *tb.learner.neighbours(state)))
     prevstate = state
     while not tb.learner.goal(state) and n < tb.num_states:
         if fault() or n == 0:
+            if reset:
+                tb.learner.reset()
             segment = [segment[-1]]
             segments['{:03d}'.format(i)] = segment
             episodes = tb.learner.neighbours(state)
@@ -120,9 +131,11 @@ def adaptive_path(tb, start, fault):
         if state == prevstate and tb.learner.exploration == 0:
             break
         prevstate = state
+        traversed.append(state)
         segment.append(tb.state2coord(state))
         n += 1
-    return segments, tb.state2coord(state), n, tb.learner.goal(state)
+    traversed.extend([traversed[-1] * (tb.num_states-n)])
+    return segments, traversed, tb.state2coord(state), n, tb.learner.goal(state)
 
 
 
@@ -221,7 +234,7 @@ def print_results(segments, final, length, goal):
 
 if __name__ == '__main__':
 
-    np.seterr(under='ignore')
+    # np.seterr(all='ignore')
 
     args = ArgumentParser()
     args.add_argument('-t', '--topology', metavar='T', type=int,
@@ -246,8 +259,10 @@ if __name__ == '__main__':
                       help="Online or Offline policy update", default=False)
     args.add_argument('-f', '--faultprob', metavar='F', type=float,
                       help="Probability of fault after each action", default=0.25)
+    args.add_argument('--faultreset', action='store_true',
+                      help="Whether to reset value function after each fault.", default=False)
     args.add_argument('--greedyprob', metavar='G', type=float,
-                      help="Probability of using best action when policy=greedy", default=0.5)
+                      help="Probability of using best action when policy=greedy", default=0.4)
     args.add_argument('--seed', metavar='SEED', type=int,
                       help="Random number seed", default=None)
     args.add_argument('--hierarchical', action='store_true',
@@ -258,6 +273,8 @@ if __name__ == '__main__':
                       help="Use functional instead of tabular approximation for value function.", default=False)
     args.add_argument('--numtrials', metavar='TRIALS', type=int,
                       help="Analyse a number of trials to run instead of showing a single result", default=1)
+    args.add_argument('--showfield', action='store_true',
+                      help="Show optimal action field for RL methods. True when faultprob=0 or explicit.", default=False)
     args = args.parse_args()
 
     # Print paramters
@@ -289,12 +306,12 @@ if __name__ == '__main__':
                             np.random.RandomState(seed), faultall=True)
 
             # Run simulation with intermittent faults and adaptive learning
-            tb.learner.learn(coverage=args.coverage)
-            segments, final, length, goal = adaptive_path(tb, start, fault)
+            # tb.learner.learn(coverage=args.coverage)
+            segments, traversed, final, length, goal = adaptive_path(tb, start, fault, args.faultreset)
             if args.numtrials == 1:
                 print_results(segments, final, length, goal)
                 # Show optimal and adaptive paths to goal state
-                tb.show_topology(**segments, showfield=args.faultprob==0)
+                tb.show_topology(**segments, showfield=args.faultprob==0 or args.showfield)
         
         
         # Use functional reinforcement learning
@@ -322,48 +339,64 @@ if __name__ == '__main__':
                 return np.dot(w, dfunc(s, a, w))
             # set up testbench
             mode = FLearner.ONLINE if args.online else FLearner.OFFLINE
-            tbfunc = TestBench(size=args.topology, seed=seed, learner=FLearner,
+            tb = TestBench(size=args.topology, seed=seed, learner=FLearner,
                         lrate=args.rate, discount=args.discount, exploration=args.explore,
                         depth=args.maxdepth, steps=args.steps, policy=args.policy,
                         max_prob=args.greedyprob, mode=mode, func=func, dfunc=dfunc,
                         funcdim=funcdim)
             # define stepsize for heirarchical learning
             if args.hierarchical:
-                deltaheight = np.amax(tbfunc.topology) - np.amin(tbfunc.topology)
+                deltaheight = np.amax(tb.topology) - np.amin(tb.topology)
                 def stepsize(state):
-                    cr, cc = tbfunc.state2coord(state)
-                    height = tbfunc.topology[cr, cc]
-                    return int(np.sqrt(height * tbfunc.size / deltaheight)) + 1
-                tbfunc.learner.stepsize = stepsize
+                    cr, cc = tb.state2coord(state)
+                    height = tb.topology[cr, cc]
+                    return int(np.sqrt(height * tb.size / deltaheight)) + 1
+                tb.learner.stepsize = stepsize
 
-            fault = fault_func(tbfunc.learner, args.faultprob,\
+            dmap = distance_map(tb.goals, args.topology, args.topology, flatten=True)
+            fault = fault_func(tb.learner, args.faultprob,\
                             np.random.RandomState(seed), faultall=True)
 
             # Run simulation with intermittent faults and adaptive learning
-            tbfunc.learner.learn(coverage=args.coverage)
-            segments, final, length, goal = adaptive_path(tbfunc, start, fault)
+            # tb.learner.learn(coverage=args.coverage)
+            segments, traversed, final, length, goal = adaptive_path(tb, start, fault, args.faultreset)
             if args.numtrials == 1:
                 print_results(segments, final, length, goal)
                 # Show optimal and adaptive paths to goal state
-                tbfunc.show_topology(**segments, showfield=args.faultprob==0)
+                tb.show_topology(**segments, showfield=args.faultprob==0 or args.showfield)
 
         
         # Use model predictive control (mpc)
         elif args.usempc:
             # set up testbench
-            tbmpc = TestBench(size=args.topology, seed=seed, learner=None)
-            dmap = distance_map(tbmpc.goals, args.topology, args.topology, flatten=True)
-            learner = ModelPredictiveController(dmap=dmap, seed=tbmpc.seed,
-                                            depth=args.maxdepth, goal=tbmpc.goals,
-                                            rmatrix=tbmpc.rmatrix, tmatrix=tbmpc.tmatrix)
-            tbmpc.learner = learner
-            faultmpc = fault_func(tbmpc.learner, args.faultprob,\
+            tb = TestBench(size=args.topology, seed=seed, learner=None)
+            dmap = distance_map(tb.goals, args.topology, args.topology, flatten=True)
+            learner = ModelPredictiveController(dmap=dmap, seed=tb.seed,
+                                            depth=args.maxdepth, goal=tb.goals,
+                                            rmatrix=tb.rmatrix, tmatrix=tb.tmatrix)
+            tb.learner = learner
+            faultmpc = fault_func(tb.learner, args.faultprob,\
                                 np.random.RandomState(seed), faultall=True)
         # Run simulation with intermittent faults and adaptive learning
-            segments, final, length, goal = adaptive_path(tbmpc, start, faultmpc)
+            segments, traversed, final, length, goal = adaptive_path(tb, start, faultmpc)
             if args.numtrials == 1:
                 print_results(segments, final, length, goal)
                 # Show optimal and adaptive paths to goal state:
-                tbmpc.show_topology(**segments, showfield=False)
+                tb.show_topology(**segments, showfield=False)
+        
+        # append results to list
+        paths.append(traversed)
+        endpoints.append(final)
+        lengths.append(length)
+        successes.append(goal)
     
     # Analyse results from one of three approaches (tabular, functional, mpc)
+    hmap = tb.topology.reshape(dmap.shape)
+    allstates = [s for states in paths for s in states]
+    havg = np.mean(hmap[allstates])
+    cavg = np.mean(dmap[[path[-1] for path in paths]])
+    davg = np.mean(dmap[allstates])
+    tavg = 1 if args.usempc else (args.explore + args.faultprob)
+    print('=====')
+    print('havg: %5.2e\tcavg: %5.2f\tdavg: %5.2f\ttavg: %5.2f\t' % (havg, cavg, davg, tavg))
+    print('=====')
