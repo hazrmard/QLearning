@@ -45,7 +45,6 @@ POLICIES = (QLearner.UNIFORM, QLearner.GREEDY, QLearner.SOFTMAX)
 policy_str = ('Uniform', 'Greedy', 'Softmax')
 LEARNING_RATE = 0.25                # Learning rate for Q-Learning algorithm
 DISCOUNT_FACTOR = 1                 # Discount factor for Q-Learning algorithm
-EXPLORATION = 0.50                  # Exploration vs. Exploitation factor
 GREEDY_MAX_PROB = 0.25              # Probability of choosing max. uti. action (greedy)
 MODE = QLearner.OFFLINE             # Action selection policy update mode
 COVERAGE = 0.5                      # State coverage for learning episodes
@@ -68,8 +67,7 @@ for trial in range(NUM_TRIALS):
     for i, policy in enumerate(POLICIES):
         testbench = TestBench(size=TOPOLOGY_SIZE, seed=trial, method=TOPOLOGY_METHOD,\
                     goals=TOPOLOGY_SIZE, wrap=WRAP, lrate=LEARNING_RATE,\
-                    discount=DISCOUNT_FACTOR, policy=policy, max_prob=GREEDY_MAX_PROB,\
-                    exploration=EXPLORATION)
+                    discount=DISCOUNT_FACTOR, policy=policy, max_prob=GREEDY_MAX_PROB)
         testbench.learner.learn(coverage=COVERAGE, ep_mode=LEARNING_MODE)
         tb.append(testbench)
 

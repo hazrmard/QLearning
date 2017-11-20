@@ -41,7 +41,7 @@ class FlagGenerator:
                     self.flags[i] = flag[-1] - flag[0] + 1    # upper/lower inclusive
                 elif len(flag) >= 3:
                     self.flags[i] = flag[1]
-                    self.scale[i] = (flag[-1] - flag[0] + 1) / flag[1]
+                    self.scale[i] = (flag[-1] - flag[0]) / (flag[1] - 1)
             else:
                 self.flags[i] = int(flag)
 

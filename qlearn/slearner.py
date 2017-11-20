@@ -94,9 +94,9 @@ class SLearner(FLearner):
     """
 
     def __init__(self, reward, simulator, stateconverter, actionconverter, goal,
-                 func, funcdim, dfunc, lrate=0.25, discount=1, exploration=0,
+                 func, funcdim, dfunc, lrate=0.25, discount=1,
                  policy='uniform', depth=None, steps=1, seed=None,
-                 stepsize=lambda x:-1, **kwargs):
+                 stepsize=lambda x:None, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -106,7 +106,6 @@ class SLearner(FLearner):
 
         self.lrate = lrate
         self.discount = discount
-        self.exploration = exploration
         self.depth = stateconverter.num_states if depth is None else depth
         self.steps = steps
         self.stepsize = stepsize
@@ -245,3 +244,15 @@ class SLearner(FLearner):
             error (float): Error term (current value - next estimate)
         """
         self.weights -= self.lrate * error * self.dfunc(svec, avec, self.weights)
+
+
+    def recommend(self, svec):
+        """
+        Returns the action with the highest q value.
+
+        Args:
+            svec (ndarray/list/tuple): Vector of state variables.
+        Returns:
+            The action vector corresponding to the most valuable action.
+        """
+        return self.actionconverter.decode(super().recommend(svec))

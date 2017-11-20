@@ -41,6 +41,7 @@ All learners expose the following interface:
 """
 
 import numpy as np
+from itertools import zip_longest
 try:
     import utils
     from algorithms import variablenstep
@@ -104,7 +105,7 @@ class QLearner:
     ONLINE = 'online'
 
     def __init__(self, rmatrix, goal, tmatrix=None, lrate=0.25, discount=1,
-                 exploration=0, policy='uniform', mode='offline', depth=None,
+                 policy='uniform', mode='offline', depth=None,
                  steps=1, seed=None, stepsize=lambda x:1, **kwargs):
         if seed is None:
             self.random = np.random.RandomState()
@@ -115,14 +116,12 @@ class QLearner:
         self.tmatrix = None
         self.rmatrix = None
         self._goals = set()
-        self._next_state = None
         self._policy = None
 
         self.depth = depth  # set later in set_rq_matrix() if None
         self.steps = steps
         self.lrate = lrate
         self.discount = discount
-        self.exploration = exploration
         self.stepsize = stepsize
         self._action_param = {}     # helper parameter for GREEDY/SOFTMAX policies
 
@@ -202,7 +201,7 @@ class QLearner:
             self.rmatrix = utils.read_matrix(rmatrix)
         else:
             raise TypeError('Either provide filename or ndarray for R matrix.')
-        self.qmatrix = self.random.rand(*self.rmatrix.shape)
+        self.qmatrix = np.zeros(self.rmatrix.shape)
         if self.depth is None:
             self.depth = self.num_states
 
@@ -246,12 +245,13 @@ class QLearner:
             if tmatrix.dtype != int:
                 raise TypeError('Transition matrix must have integer contents.')
             self.tmatrix = tmatrix
-            self._next_state = lambda s, a: self.tmatrix[s, a]
+            # self._next_state = lambda s, a: self.tmatrix[s, a]
         else:
             rows, cols = self.rmatrix.shape
             if rows != cols:
                 raise ValueError('R matrix must be square if no transition matrix.')
-            self._next_state = lambda s, a: a
+            self.tmatrix = np.tile(np.arange(cols), (rows, 1))
+            # self._next_state = lambda s, a: a
 
 
     def episodes(self, coverage=1., mode=None):
@@ -342,7 +342,7 @@ class QLearner:
             int representing index of next state in [r|q] matrix.
         """
         for _ in range(stepsize):
-            state = self._next_state(state, action)
+            state = self.tmatrix[state, action]
         return state
 
 
@@ -420,6 +420,8 @@ class QLearner:
             
             **kwargs: Any learning parameters (lrate, depth, stepsize, mode, steps,
                 discount, exploration) which are stored.
+        Returns:
+            A list of lists of states traversed for each episode.
         """
         for key, val in kwargs.items():
             if hasattr(self, key):
@@ -428,7 +430,15 @@ class QLearner:
         episodes = episodes if episodes is not None else\
                 self.episodes(coverage=coverage, mode=ep_mode)
 
-        variablenstep(self, episodes=episodes, actions=actions)
+        histories = []
+        actions = []
+        for i, pair in enumerate(zip_longest(episodes, actions)):
+            if self.mode == self.__class__.OFFLINE:
+                self._update_policy()
+            states, actions = variablenstep(self, state=pair[0], action=pair[1])
+            histories.append(states)
+            actions.append(actions)
+        return histories, actions
 
 
     def update(self, state, action, error):
@@ -444,29 +454,19 @@ class QLearner:
         self.qmatrix[state, action] -= self.lrate * error
 
 
-    def recommend(self, state, **kwargs):
+    def recommend(self, state):
         """
         Recommends an action based on the learned q matrix and current state.
-        Must be called after learn(). Either recommends an exploratory action
-        or an action with the highest utility according to self.exploration
-        setting (1 to 0).
+        Must be called after learn().
 
         Args:
             state (int): Index of current state in [r|q]matrix.
-            kwargs: Other keyword arguments passed to learn() during exploration
-                phase for e.g. stepsize. Learning paramaters are stored.
 
         Returns:
             Index of action to take (column) in [r|q]matrix.
         """
-        if self.random.rand() < self.exploration:
-            # explore
-            action = self.next_action(state)
-            self.learn(episodes=[state], actions=[action], **kwargs)
-            return action
-        else:
-            # exploit
-            return self.value(state)[1]
+        # exploit
+        return np.argmax(self.qvalue(state))
 
 
     def reset(self):
@@ -477,7 +477,7 @@ class QLearner:
         The qmatrix is not automatically reset for each learn() call to allow
         for the learning process to build upon a custom qmatrix provided.
         """
-        self.qmatrix = np.ones_like(self.rmatrix)
+        self.qmatrix = np.zeros_like(self.rmatrix)
 
 
     def _uniform_policy(self, state):
@@ -587,5 +587,5 @@ class QLearner:
         elif self.policy == QLearner.SOFTMAX:
             qvals = self.qvalue(state)
             recentered = qvals - np.min(qvals)
-            return recentered / (np.sum(recentered) + 1)
+            return recentered / (np.sum(recentered) + self.lrate)
 

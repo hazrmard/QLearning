@@ -125,10 +125,10 @@ class FLearner(QLearner):
     """
 
     def __init__(self, rmatrix, stateconverter, actionconverter, goal, func,
-                 funcdim, dfunc, tmatrix=None, lrate=0.25, discount=1,
-                 exploration=0, policy='uniform', mode='offline', depth=None,
+                 funcdim, dfunc, tmatrix=None, lrate=0.25, discount=1, 
+                 policy='uniform', mode='offline', depth=None,
                  steps=1, seed=None, stepsize=lambda x: 1, **kwargs):
-        super().__init__(rmatrix, goal, tmatrix, lrate, discount, exploration,\
+        super().__init__(rmatrix, goal, tmatrix, lrate, discount,
                          policy, mode, depth, steps, seed, **kwargs)
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter

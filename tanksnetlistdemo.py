@@ -57,12 +57,11 @@ GOAL_THRESH = 0.05  # Sensitivity to a state being considered goal. Smaller -> s
 COVERAGE = 0.2      # Fraction of states to cover in learning initially (or load weights from file)
 LRATE = 1e-2        # Learning rate (0, 1]
 DISCOUNT = 0.75     # Discount factor (0, 1]
-EXPLORATION = 0.    # Exploration while recommending actions [0, 1]
+EXPLORATION = 0.25  # Exploration while recommending actions [0, 1]
 POLICY = SLearner.UNIFORM   # The action selection policy
 DEPTH = 5           # Number of steps at most in each learning episode
 STEPS = 1           # Number of steps to look ahead during learning
 SEED = None         # Random number seed
-INTERVAL = DEPTH    # Number of steps between re-learning policy
 
 # Set up command-line configuration
 args = ArgumentParser()
@@ -83,8 +82,6 @@ args.add_argument('-s', '--steps', metavar='S', type=int,
                   help="Number of steps to look ahead during learning", default=STEPS)
 args.add_argument('-m', '--maxdepth', metavar='M', type=int,
                   help="Number of steps at most in each learning episode", default=DEPTH)
-args.add_argument('-t', '--interval', metavar='T', type=int,
-                  help="Number of steps between re-learning policy", default=INTERVAL)
 args.add_argument('-u', '--fault', metavar='U', type=str, nargs='*',
                   help="Name of tank with leak", default=FAULT)
 args.add_argument('-p', '--policy', metavar='P', choices=['uniform', 'softmax', 'greedy'],
@@ -215,7 +212,7 @@ SIM = Simulator(env=NET, timestep=MAX_SIM_TSTEP, state_mux=state_mux,
 LEARNER = SLearner(reward=reward, simulator=SIM, stateconverter=STATES,
                    actionconverter=ACTIONS, goal=goal, func=func, funcdim=FUNCDIM,
                    dfunc=dfunc, lrate=ARGS.rate, discount=ARGS.discount,
-                   exploration=ARGS.explore, policy=ARGS.policy, depth=ARGS.maxdepth,
+                   policy=ARGS.policy, depth=ARGS.maxdepth,
                    steps=ARGS.steps, seed=ARGS.seed, stepsize=DELTA_T)
 
 
@@ -264,7 +261,7 @@ def status():
     if goal(s):
         exit('Goal state reached.')
 
-    if COUNT % ARGS.interval == 0 and not ARGS.disable: # re-learn at interval steps
+    if LEARNER.random.rand() <= ARGS.explore and not ARGS.disable: # re-learn at interval steps
         episodes = LEARNER.neighbours(svec)
         LEARNER.learn(episodes=episodes)
 

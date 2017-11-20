@@ -155,7 +155,7 @@ def test_online_learning():
     QLEARNER.learn()
 
 
-@test
+# @test
 def qlearner_testbench():
     """
     Testing Qlearner testbench.
@@ -164,7 +164,6 @@ def qlearner_testbench():
     size = 10
     mode = 'bfs'
     coverage = 1
-    exploration = 0
     seed = 40000
     lrate = 0.5
     discount = 1
@@ -199,7 +198,6 @@ def qlearner_testbench():
     # Test 3: Pathfinding
     t.learner.reset()
     t.learner.learn(coverage=coverage, ep_mode=mode, stepsize=stepsize)
-    t.learner.exploration = exploration
     res = t.episode(start=start, interactive=False)
     assert res == t.path, 'Returned list not equal to stored path.'
     assert len(res) > 0, 'Episode path not computed.'
@@ -218,7 +216,6 @@ def flearner_testbench():
     size = 10
     ep_mode = 'bfs'
     coverage = 0.25
-    exploration = 0.25
     seed = 1000
     lrate = 0.4
     discount = 0.5
@@ -234,7 +231,7 @@ def flearner_testbench():
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=FLearner, lrate=lrate,
-                  discount=discount, exploration=exploration, func=func,
+                  discount=discount, func=func,
                   funcdim=funcdim, dfunc=dfunc, steps=steps)
 
     # Test 2: F learning
@@ -257,7 +254,6 @@ def slearner_testbench():
     size = 5
     policy = SLearner.GREEDY
     coverage = 0.3
-    exploration = 0.25
     seed = 1000
     lrate = 1e-1
     discount = 1e-2
@@ -272,7 +268,7 @@ def slearner_testbench():
 
     # Test 1: Instantiation
     t = TestBench(size=size, seed=seed, learner=SLearner, lrate=lrate, policy=policy,
-                  discount=discount, exploration=exploration, func=func,
+                  discount=discount, func=func,
                   funcdim=funcdim, dfunc=dfunc, steps=steps, max_prob=0.4)
 
     # Test 2: S learning

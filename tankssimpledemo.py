@@ -2,13 +2,14 @@
 This script implements reinforcement learning on a system of interconnected
 fuel tanks. The objective is to balance the tanks by minimizing the moment
 about the center. The state space is continuous and the action space is
-descrete.
+descrete. The system is implemented as a circuit created programmatically.
 
 For N tanks, there are N-choose-2 current sources that act as valves to transfer
 charge/fuel between any 2 tanks. Only 1 valve can be active at a time. The system
 is created during runtime (as opposed to loading a netlist file).
 
-For another implementation of the tanks system based on a netlist, see tanks.py
+For another implementation of the tanks system based on a netlist, see 
+tanksnetlistdemo.py
 
 Usage:
 

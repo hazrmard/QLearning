@@ -73,11 +73,11 @@ class Simulator:
     """
 
     def __init__(self, env, timestep, state_mux, state_demux=None, ic=None,
-                 stepsize=-1, *args, **kwargs):
+                 stepsize=None, *args, **kwargs):
         self.netlist = env
         self.circuit = self.preprocess(env)
         self.timestep = timestep
-        self.stepsize = timestep if stepsize <= 0 else stepsize
+        self.stepsize = timestep if stepsize is None else stepsize
         self._state_mux = state_mux
         self._state_demux = state_demux if state_demux is not None else\
                             lambda w, x, y, z: z
@@ -108,7 +108,7 @@ class Simulator:
         return circuit                 # apply any element changes
 
 
-    def run(self, state=None, action=None, stepsize=-1, **kwargs):
+    def run(self, state=None, action=None, stepsize=None, **kwargs):
         """
         Runs a simulation for the specified time. Passes simulation results to
         postprocess().
@@ -123,7 +123,7 @@ class Simulator:
         Returns:
             A vector of state variables describing the new state.
         """
-        stepsize = self.stepsize if stepsize <= 0 else stepsize
+        stepsize = self.stepsize if stepsize is None else stepsize
         if state is not None or action is not None:
             self.set_state(state, action)
         # Setting initial conditions to either Operating Point or values

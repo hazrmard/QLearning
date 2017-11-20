@@ -94,6 +94,7 @@ class TestBench:
         self.path = []
         self.tmatrix = np.array([])
         self.rmatrix = np.array([])
+
         if isinstance(goals, (int, float)):
             self.goals = []
             self.num_goals = abs(int(goals))
@@ -104,6 +105,7 @@ class TestBench:
         else:
             self.goals = []
             self.num_goals = self.size
+
         self.learner = None
 
         # plotting variables
@@ -111,8 +113,11 @@ class TestBench:
         self.fig_num = self.__class__.plot_num
         self.fig = None
 
-        self.create_topology(method)
-        self.tmatrix, self.rmatrix, self.goals = self.generate_trg(wrap)
+        self.topology = self.create_topology(method)
+        self.tmatrix = self.create_tmatrix(wrap=wrap)
+        if len(self.goals) == 0:
+            self.goals = self.create_goals(self.topology, self.num_goals)
+        self.rmatrix = self.create_rmatrix(self.goals, self.topology, self.tmatrix)
         self.set_up_learner(learner, **kwargs)
 
 
@@ -146,7 +151,8 @@ class TestBench:
         elif learner is None:
             self.learner = None
         else:
-            raise TypeError('Class: ' + learner.__name__ + ' is not supported.')
+            raise TypeError('Class: ' + learner.__name__ + ' is not supported.\
+                             Assign to .learner manually')
 
 
     def episode(self, start=None, interactive=True, limit=-1):
@@ -285,12 +291,10 @@ class TestBench:
         # Plot optimal action field
         if showfield:
             vals, inds = list(zip(*[self.learner.value(s) for s in range(self.num_states)]))
-            # v_i = np.array([self.learner.value(s) for s in range(self.num_states)])
-            # vals = v_i[:, 0]
-            # inds = v_i[:, 1]
-            vals = np.abs((vals - min(vals)))
-            vals = vals / max(vals)
             inds = np.array(inds, dtype=int)
+            vals = np.array(vals, dtype=float)
+            vals = vals - min(vals) + 0.1       # adding small value in case all vals are same and reduce to 0
+            vals = vals / max(vals)
             # action_y multiplied by negative val since y-axes are inverted (bug)
             try:
                 inds = [self.learner.actionconverter.encode(i) for i in inds]
@@ -325,7 +329,7 @@ class TestBench:
         if len(paths) > 0 and showlegend:
             topo_ax.legend()
         # Display figure
-        plt.show(block=True)
+        plt.show()
         self.fig.clear()
         plt.close(self.fig_num)
 
@@ -344,16 +348,90 @@ class TestBench:
                     function(self, *args, **kwargs)
             *args: Positional arguments passed on to method if it is a function.
             **kwargs: Keyword arguments passed on to method if it is a function.
+        
+        Returns:
+            A size x size array representing a height map.
         """
         if callable(method):
-            self.topology = method(*args, **kwargs)
+            return method(*args, **kwargs)
         elif method == 'fault':
-            self.topology = fault_algorithm(int(self.random.rand() * 200),\
+            return fault_algorithm(int(self.random.rand() * 200),\
                             (self.size, self.size), self.random)
+
+
+    def create_tmatrix(self, wrap=False):
+        """
+        Creates a transition matrix based on the action vectors (self.actions).
+        
+        Args:
+            wrap (bool): Makes actions on edges go to the other side.
+        
+        Returns:
+            A states x actions ndarray. Where [i, j] is the next state index
+            for taking action j from state i.
+        """
+        tmatrix = np.zeros((self.num_states, len(self.actions)), dtype=int)
+        for i in range(self.num_states):
+            coords = self.state2coord(i)
+            # updating r and t matrices
+            for j, action in enumerate(self.actions):
+                next_coord = coords + action
+                if wrap:
+                    next_coord[next_coord < 0] += self.size
+                    next_coord[next_coord >= self.size] -= self.size
+                else:
+                    next_coord[next_coord < 0] = 0
+                    next_coord[next_coord >= self.size] = self.size - 1
+
+                tmatrix[i, j] = self.coord2state(next_coord)
+        return tmatrix
+    
+
+    def create_goals(self, topology, num_goals):
+        """
+        Returns a list of the num_goals lowest elevation states indices.
+
+        Args:
+            topology (ndarray): A size x size array where each element is the
+                height at that coordinate [y, x].
+            num_goals (int): Number of goal states to create.
+        """
+        return np.argsort(np.ravel(topology))[:num_goals]
+    
+
+    def create_rmatrix(self, goals, topology, tmatrix):
+        """
+        Given goals, topology, and tmatrix, calculates the reward for taking
+        action j from state i.
+
+        Args:
+            goals (list): State indices of goal states (see create_goals()).
+            topology (ndarray): A size x size height map (see create_topology().
+            tmatrix (ndarray): A states x actions array (see create_tmatrix()).
+        
+        Returns:
+            A states x actions array where element [i, j] is reward for taking
+            action j from state i.
+        """
+        reward_lim = np.amax(topology) - np.amin(topology)
+        rmatrix = np.zeros((self.num_states, len(self.actions)))
+        for i in range(self.num_states):
+            coords = self.state2coord(i)
+            for j, action in enumerate(self.actions):
+                next_coord = self.state2coord(tmatrix[i, j])
+                if tmatrix[i, j] in goals:
+                    rmatrix[i, j] = 1
+                else:
+                    rmatrix[i, j] = (topology[coords[0], coords[1]] \
+                                     - topology[next_coord[0], next_coord[1]]) \
+                                    / reward_lim \
+                                    - (1/self.size)
+        return rmatrix
 
 
     def generate_trg(self, wrap=False):
         """
+        NOTE: DEPRACATED
         Calculates goal states and creates transition & reward matrices. Where
         tmatrix[state, action] points to index of next state. And
         rmatrix[state, action] is the reward for taking that action. State is
@@ -389,15 +467,15 @@ class TestBench:
 
                 tmatrix[i, j] = self.coord2state(next_coord)
                 # Punish actions looping back i.e at edges when no wrap
-                if np.array_equal(next_coord, coords):
-                    rmatrix[i, j] = -reward_lim
+                # if np.array_equal(next_coord, coords):
+                #     rmatrix[i, j] = -reward_lim
                 # Reward actions leading to final goal
-                elif tmatrix[i, j] in goals:
-                    rmatrix[i, j] = reward_lim
+                if tmatrix[i, j] in goals:
+                    rmatrix[i, j] = self.size*reward_lim
                 else:
                     rmatrix[i, j] = (self.topology[coords[0], coords[1]] \
                                     - self.topology[next_coord[0], next_coord[1]]) \
-                                    # / reward_lim - 1
+                                    / reward_lim - 1
         return (tmatrix, rmatrix, goals)
 
 
