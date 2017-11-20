@@ -43,8 +43,8 @@ class Simulator:
         timestep (float): Max interval between calculations during simulation.
             Lower values are performance intensive.
         stepsize (float): The default time to run the simulation. Used when
-            stepsize is not provided to run(). If not specified, defaults to
-            timestep.
+            stepsize is not provided to run(). If not specified (i.e. None),
+            defaults to timestep.
         state_mux (func): A function that gets a vector of state variables and
             modifies the netlist accordingly. Returns the modified netlist.
             Signature:
@@ -119,7 +119,7 @@ class Simulator:
             action (list/tuple/ndarray): A vector of action variables that are used
                 to change self.netlist and self.circuit
             stepsize (float): Time over which to run simulation. Defaults to
-                self.timestep.
+                self.timestep if None.
         Returns:
             A vector of state variables describing the new state.
         """

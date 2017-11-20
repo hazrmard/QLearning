@@ -99,10 +99,6 @@ class FLearner(QLearner):
             of [n states x n states] i.e. no actions but direct state transitions.
         lrate (float): Learning rate for q-learning.
         discount (float): Discount factor for q-learning.
-        exploration (float): Balance between exploring random states according
-            to action selection policy, or exploiting already learned utilities
-            to suggest max utility action. 1 means full exploration 0
-            exploitation. 0.5 means half of each. Default is 0.
         policy (str): The action selection policy. Used durung learning/
             exploration to randomly select actions from a state. One of
             QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default UNIFORM.
@@ -119,9 +115,10 @@ class FLearner(QLearner):
     Instance Attributes:
         goal (func): Takes a state number (int) and returns bool whether it is
             a goal state or not.
-        mode/policy/lrate/discount/exploration/rmatrix/tmatrix: Same as args.
+        mode/policy/lrate/discount/rmatrix/tmatrix: Same as args.
         random (np.random.RandomState): A random number generator local to this
             instance.
+        weights (ndarray): The coefficients of the function provided.
     """
 
     def __init__(self, rmatrix, stateconverter, actionconverter, goal, func,

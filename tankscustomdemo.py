@@ -4,21 +4,23 @@ on a cargo plane represented by a custom simulator. There are 6 tanks. 4 of
 the tanks are primary tanks and have outputs to engines. The remaining 2 are
 auxiliary tanks which feed into the primary tanks. The system drains outer tanks
 first before using inner tanks to feed engines. Faults in the system are leak(s)
-in fuel tanks.
+in fuel tanks. Only a single fault occurs at a time.
 
 Two kinds of control are implemented:
     - Reinforcement learning: The controller explores a sample of the state space
         to estimate values for different actions. Actions with the largest
-        values are picked at each step.
+        values are picked at each step. Function approximation is used for
+        value estimation.
     - Model predictive control: The controller samples each of the possible
         reachable states within a timestep horizon and picks a state closest
         to the goal.
 
 It is assumed that the controller has an accurate model of the system.
 
-Fuel tanks are arranged physically as:
+Fuel tanks are arranged physically (and indexed) as:
 
     1  2  LAux   |   RAux   3  4
+   [1  2  3          4      5  6]
 
 
 Usage:
@@ -54,14 +56,14 @@ POLICY = SLearner.SOFTMAX   # The action selection policy
 DEPTH = 10          # Number of steps at most in each learning episode
 STEPS = 1           # Number of steps to look ahead during learning
 SEED = None         # Random number seed
-FAULT = 0           # Default tank with leak
+FAULT = list(range(7))         # Default set of faults
 DELTA_T = 1
 
 # Set up command-line configuration
 args = ArgumentParser()
 args.add_argument('-i', '--initial', metavar=tuple(['L']*6 + ['A']*6), type=float, 
                   nargs=12, help="Initial tank levels and switch values.",
-                  default=None)
+                  default=[100, 100, 100, 100, 100, 100, 0, 0, 0, 0, 0, 0])
 args.add_argument('-c', '--coverage', metavar='C', type=float,
                   help="Fraction of states to cover in learning", default=COVERAGE)
 args.add_argument('-r', '--rate', metavar='R', type=float,
@@ -74,8 +76,8 @@ args.add_argument('-s', '--steps', metavar='S', type=int,
                   help="Number of steps to look ahead during learning", default=STEPS)
 args.add_argument('-m', '--maxdepth', metavar='M', type=int,
                   help="Number of steps at most in each learning episode", default=DEPTH)
-args.add_argument('-f', '--fault', metavar='F', type=int,
-                  help="Name of tank with leak", default=FAULT)
+args.add_argument('-f', '--fault', metavar='F', type=int, nargs='+',
+                  help="List of faults. For server, first fault is chosen.", default=FAULT)
 args.add_argument('-p', '--policy', metavar='P', choices=['uniform', 'softmax', 'greedy'],
                   help="The action selection policy", default=POLICY)
 args.add_argument('--seed', metavar='SEED', type=int,
@@ -84,6 +86,8 @@ args.add_argument('-x', '--disable', action='store_true',
                   help="Learning disabled if included", default=False)
 args.add_argument('--usempc', action='store_true',
                   help="Use model predictive controller.", default=False)
+args.add_argument('--numtrials', type=int, metavar='N',
+                  help="Run trials instead of interactive server.", default=None)
 ARGS = args.parse_args()
 
 
@@ -232,6 +236,7 @@ class ModelPredictiveController(SLearner):
         self.simulator = simulator
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
+        self.funcdim = 1                    # for compatibility
         self._avecs = [avec for avec in self.actionconverter]
 
         self.weights = np.ones((1, 13)) # just for compatibility
@@ -272,8 +277,15 @@ class ModelPredictiveController(SLearner):
 
 
 
+def moment(s):
+        return abs(3 * (s[0] - s[5]) + \
+        2 * (s[1] - s[4]) + \
+        1 * (s[2] - s[3]))
+
+
+
 def goal(state):
-    return False
+    return sum(state[:6]) == 0
 
 
 
@@ -291,20 +303,15 @@ def func(state, action, weights):
     return np.dot(dfunc(state, action, weights), weights)
 
 
-
-def moment(s):
-        return abs(3 * (s[0] - s[5]) + \
-        2 * (s[1] - s[4]) + \
-        1 * (s[2] - s[3]))
-
-
-
+# The sampling grid over the state space. A total of 1,000,000 states.
 STATES = FlagGenerator((20, 5, 100), (20, 5, 100), (20, 5, 100), (20, 5, 100),
                        (20, 5, 100), (20, 5, 100), 2, 2, 2, 2, 2, 2)
+# The possible set of actions (64).
 ACTIONS = FlagGenerator(2, 2, 2, 2, 2, 2)
 
+# The system with a possible fault
+SIM = SixTankModel(fault=ARGS.fault[0])
 
-SIM = SixTankModel(fault=ARGS.fault)
 
 if not ARGS.usempc:
 # Create the SLearner instance
@@ -325,53 +332,85 @@ for key, value in vars(ARGS).items():
         print('%12s: %-12s' % (key, value))
     except:
         pass
-# Loading weights or learning new policy
-if not ARGS.disable:
-    input('\nPress Enter to begin learning.')
-    print('Learning episodes: %5d out of %d states' %
-        (int(ARGS.coverage * STATES.num_states), STATES.num_states))
-    LEARNER.learn(coverage=ARGS.coverage)
 
 
-# Set up a server
-APP = flask.Flask('Tanks', static_url_path='', static_folder='', template_folder='')
-svec = np.zeros(12, dtype=float)
-avec = np.zeros(6, dtype=int)
+# Either run interactive server, or multiple trials
+if ARGS.numtrials is None:
+    # Set up a server
+    APP = flask.Flask('Tanks', static_url_path='', static_folder='', template_folder='')
+    svec = np.zeros(12, dtype=float)
+    avec = np.zeros(6, dtype=int)
 
-@APP.route('/')
-def demo():
-    if ARGS.initial is None:
-        svec[:] = [100, 100, 100, 100, 100, 100, 0, 0, 0, 0, 0, 0]
-        avec[:] = svec[6:]
-    else:
+    # Initial learning for RL controller
+    if not ARGS.disable and not ARGS.usempc:
+        LEARNER.learn(coverage=ARGS.coverage)
+
+    @APP.route('/')
+    def demo():
         svec[:] = np.array(ARGS.initial)
         avec[:] = ARGS.initial[6:]
-    return flask.render_template('demo.html', N=100, T=6,
-                                 L=['1', '2', 'LA', 'RA', '3', '4'],
-                                 O=[0, 1, 2, 3, 4, 5])
+        return flask.render_template('demo.html', N=100, T=6,
+                                    L=['1', '2', 'LA', 'RA', '3', '4'],
+                                    O=[0, 1, 2, 3, 4, 5])
 
-@APP.route('/status/')
-def status():
-    s = list(svec)                                  # cache last results
-    a = list(avec)
-    w = list(LEARNER.weights)
+    @APP.route('/status/')
+    def status():
+        s = list(svec)                                  # cache last results
+        a = list(avec)
+        w = list(LEARNER.weights)
 
-    if goal(s):
-        exit('Goal state reached.')
+        if not ARGS.disable:
+            if LEARNER.random.rand() <= ARGS.explore:   # re-learn
+                episodes = LEARNER.neighbours(svec)
+                LEARNER.learn(episodes=episodes)
+            avec[:] = LEARNER.recommend(svec)
 
-    if LEARNER.random.rand() <= ARGS.explore and not ARGS.disable: # re-learn
-        episodes = LEARNER.neighbours(svec)
-        LEARNER.learn(episodes=episodes)
+        svec[:] = LEARNER.next_state(svec, avec)        # compute new results
 
-    svec[:] = LEARNER.next_state(svec, avec)        # compute new results
-    if not ARGS.disable:
-        avec[:] = LEARNER.recommend(svec)
+        if goal(s):
+            exit('Goal state reached.')
 
-    imbalance = -moment(s)
+        imbalance = -moment(s)
 
-    return flask.jsonify(levels=[str(i) for i in s],
-                         action=' '.join(['{:2d}'.format(a) for a in avec]),
-                         weights=[str(i) for i in w],
-                         imbalance=imbalance)   # return cached results
+        return flask.jsonify(levels=[str(i) for i in s],
+                            action=' '.join(['{:2d}'.format(a) for a in avec]),
+                            weights=[str(i) for i in w],
+                            imbalance=imbalance)   # return cached results
 
-APP.run()
+    APP.run()
+
+else:
+    # Run multiple trials
+    imbalances = []     # average imbalance for each trial
+    lengths = []        # length of each trial until goal
+    for i in range(ARGS.numtrials):
+        LEARNER.simulator.fault = LEARNER.random.choice(ARGS.fault)  # introduce new fault
+        if not ARGS.disable:                                    # re-learn on new trial
+            LEARNER.reset()
+            LEARNER.learn(coverage=ARGS.coverage)
+
+        svec = np.array(ARGS.initial)   # all trials start with specified initial state
+        avec = svec[6:]
+        imbalance = -moment(svec)
+        length = 1
+        while True:
+            if not ARGS.disable:
+                if LEARNER.random.rand() <= ARGS.explore:   # explore
+                    episodes = LEARNER.neighbours(svec)
+                    LEARNER.learn(episodes=episodes)
+                avec = LEARNER.recommend(svec)              # exploit
+
+            svec = LEARNER.next_state(svec, avec)
+            imbalance = ((imbalance * length) + -moment(svec)) / (length + 1)
+            length += 1
+
+            if goal(svec):                                  # quit trial on goal
+                imbalances.append(imbalance)
+                lengths.append(length)
+                break
+        
+
+    print('=====')
+    print('Imbalance: {0:5.2f}\tLength: {1:5d}'.format(np.mean(imbalances),\
+                                                       int(np.mean(lengths))))
+    print('=====')

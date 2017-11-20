@@ -69,10 +69,6 @@ class SLearner(FLearner):
             OR a function that accepts a state vector and returns true if goal.
         lrate (float): Learning rate for q-learning.
         discount (float): Discount factor for q-learning.
-        exploration (float): Balance between exploring random states according
-            to action selection policy, or exploiting already learned utilities
-            to suggest max utility action. 1 means full exploration 0
-            exploitation. 0.5 means half of each. Default is 0.
         policy (str): The action selection policy. Used durung learning/
             exploration to randomly select actions from a state. One of
             QLearner.[UNIFORM | GREEDY | SOFTMAX]. Default UNIFORM.
@@ -82,15 +78,18 @@ class SLearner(FLearner):
             calculate next estimate of value of state, action pair. Default=1.
         seed (int): A seed for all random number generation in instance. Default
             is None.
+        stepsize (func): A function that takes a state and returns a number
+            indicating the simulator step size. By default returns None.
         **kwargs: Any number of other keyword arguments. These are passed to
             simulator.run() when next_state() is called.
 
     Instance Attributes:
         goal (func): Takes a state number (int) and returns bool whether it is
             a goal state or not.
-        mode/policy/lrate/discount/exploration/simulator/depth: Same as args.
+        mode/policy/lrate/discount/simulator/depth: Same as args.
         random (np.random.RandomState): A random number generator local to this
             instance.
+        weights (ndarray): The coefficients of the function provided.
     """
 
     def __init__(self, reward, simulator, stateconverter, actionconverter, goal,
