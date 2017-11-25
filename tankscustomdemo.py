@@ -34,13 +34,15 @@ can be tuned from the command-line.
 
 Requires:
     flask,
-    numpy
+    numpy,
+    scipy
 """
 
 import math
 import random
 import flask
 import numpy as np
+from scipy.integrate import trapz
 from argparse import ArgumentParser
 from qlearn import SLearner
 from qlearn import FlagGenerator
@@ -55,9 +57,11 @@ EXPLORATION = 0     # Exploration while recommending actions [0, 1]
 POLICY = SLearner.SOFTMAX   # The action selection policy
 DEPTH = 10          # Number of steps at most in each learning episode
 STEPS = 1           # Number of steps to look ahead during learning
+DENSITY = 1.0       # Fraction of neighbouring states sampled for episodes when exploring
 SEED = None         # Random number seed
 FAULT = list(range(7))         # Default set of faults
 DELTA_T = 1
+FUNCDIM = 7
 
 # Set up command-line configuration
 args = ArgumentParser()
@@ -86,17 +90,22 @@ args.add_argument('-x', '--disable', action='store_true',
                   help="Learning disabled if included", default=False)
 args.add_argument('--usempc', action='store_true',
                   help="Use model predictive controller.", default=False)
+args.add_argument('--hierarchical', action='store_true',
+                      help="Hierarchical state space traversal.", default=False)
+args.add_argument('--density', type=float,
+                      help="State sampling density (0, 1]. 1 => all neighbours sampled.", default=DENSITY)
 args.add_argument('--numtrials', type=int, metavar='N',
                   help="Run trials instead of interactive server.", default=None)
+args.add_argument('--verbose', action='store_true',
+                  help="Print parameters used.", default=False)
 ARGS = args.parse_args()
 
 
 
 class SixTankModel:
-    def __init__(self, fault=0, stepsize=DELTA_T):
+    def __init__(self, fault=0):
         self.R = 4.00
         self.F = 8.00
-        self.DT = stepsize
         self.fault = fault
 
 
@@ -127,7 +136,6 @@ class SixTankModel:
     def run(self, state, action, stepsize=DELTA_T, **kwargs):
         self.set_state(state)
         self.set_action(action)
-        self.DT = stepsize
         if ((self.tank_1 + self.tank_2 + self.tank_LA) >= 10 and (self.tank_3 + self.tank_4 + self.tank_RA) >= 10):
             demand_left = 10
             demand_right = 10
@@ -187,23 +195,23 @@ class SixTankModel:
                  + self.tank_RA * self.FR + self.tank_3 * self.ER + self.tank_4 * self.DR) / float(self.DL + self.EL + self.FL + self.FR + self.ER + self.DR)
         
         self.tank_1 = self.tank_1 + self.DL * \
-            (((p / self.R) - (self.tank_1 / self.R)) * (self.DT)) \
-            - ((self.tank_1 / self.F) * (self.DT) if self.fault == 1 else 0)
+            (((p / self.R) - (self.tank_1 / self.R)) * (stepsize)) \
+            - ((self.tank_1 / self.F) * (stepsize) if self.fault == 1 else 0)
         self.tank_2 = self.tank_2 + self.EL * \
-            (((p / self.R) - (self.tank_2 / self.R)) * (self.DT)) \
-            - ((self.tank_2 / self.F) * (self.DT) if self.fault == 2 else 0)
+            (((p / self.R) - (self.tank_2 / self.R)) * (stepsize)) \
+            - ((self.tank_2 / self.F) * (stepsize) if self.fault == 2 else 0)
         self.tank_LA = self.tank_LA + self.FL * \
-            (((p / self.R) - (self.tank_LA / self.R)) * (self.DT)) \
-            - ((self.tank_LA / self.F) * (self.DT) if self.fault == 3 else 0)
+            (((p / self.R) - (self.tank_LA / self.R)) * (stepsize)) \
+            - ((self.tank_LA / self.F) * (stepsize) if self.fault == 3 else 0)
         self.tank_RA = self.tank_RA + self.FR * \
-            (((p / self.R) - (self.tank_RA / self.R)) * (self.DT)) \
-            - ((self.tank_RA / self.F) * (self.DT) if self.fault == 4 else 0)
+            (((p / self.R) - (self.tank_RA / self.R)) * (stepsize)) \
+            - ((self.tank_RA / self.F) * (stepsize) if self.fault == 4 else 0)
         self.tank_3 = self.tank_3 + self.ER * \
-            (((p / self.R) - (self.tank_3 / self.R)) * (self.DT)) \
-            - ((self.tank_3 / self.F) * (self.DT) if self.fault == 5 else 0)
+            (((p / self.R) - (self.tank_3 / self.R)) * (stepsize)) \
+            - ((self.tank_3 / self.F) * (stepsize) if self.fault == 5 else 0)
         self.tank_4 = self.tank_4 + self.DR \
-            * (((p / self.R) - (self.tank_4 / self.R)) * (self.DT)) \
-            - ((self.tank_4 / self.F) * (self.DT) if self.fault == 6 else 0)
+            * (((p / self.R) - (self.tank_4 / self.R)) * (stepsize)) \
+            - ((self.tank_4 / self.F) * (stepsize) if self.fault == 6 else 0)
         
         return([self.tank_1, self.tank_2, self.tank_LA, self.tank_RA, self.tank_3, self.tank_4,
                 self.DL, self.EL, self.FL, self.FR, self.ER, self.DR])
@@ -226,13 +234,16 @@ class ModelPredictiveController(SLearner):
         state/actionconverter (FlagGenerator): Encodes/Decodes vectors into
             integer representation (mostly for compatibility w/ SLearner)
         depth (int): Maximum horizon to look ahead.
+        density (float): The fraction of neighbouring states to sample.
         seed (int): Random number generator seed. Otherwise random.
     """
 
-    def __init__(self, dmap, simulator, stateconverter, actionconverter, depth, seed=None):
+    def __init__(self, dmap, simulator, stateconverter, actionconverter, depth=1,
+                 density=1, seed=None):
         self.random = np.random.RandomState() if seed is None else np.random.RandomState(seed)
         self.dmap = dmap                   # cost measure to minimize
         self.depth = depth
+        self.density = density
         self.simulator = simulator
         self.stateconverter = stateconverter
         self.actionconverter = actionconverter
@@ -260,7 +271,9 @@ class ModelPredictiveController(SLearner):
             if cnode[2] == self.depth+1:
                 break
             # add eligible states to be explored to tree
-            for action, nstate in enumerate(self.neighbours(cnode[1])):
+            neighbours = self.neighbours(cnode[1])
+            self.random.shuffle(neighbours)
+            for action, nstate in enumerate(neighbours[:int(np.ceil(len(neighbours) * self.density))]):
                 node = (cnode, nstate, cnode[2]+1, action)
                 tree.insert(0, node)
                 # check state eligibility
@@ -285,17 +298,24 @@ def moment(s):
 
 
 def goal(state):
-    return sum(state[:6]) == 0
+    return sum(state[:6]) <= 5
 
 
 
-def reward(state, *args, **kwargs):
-    return(1000.0 / ((abs(state[0] - state[5])) + (abs(state[1] - state[4])) + (abs(state[2] - state[3])) + 1))
+def hierarchy(state):
+    return DELTA_T + int(np.log10(1 + moment(state)))
+
+
+
+def reward(state, action, nstate, **kwargs):
+    # return(1000.0 / ((abs(state[0] - state[5])) + (abs(state[1] - state[4])) + (abs(state[2] - state[3])) + 1))
+    return (sum(nstate[:6]) / 600) + (1 / (1 + moment(nstate)))
 
 
 
 def dfunc(state, action, weights):
-    return np.concatenate((state[:6], action, [1])) / np.array([100, 100, 100, 100, 100, 100, 1, 1, 1, 1, 1, 1, 1])
+    # return np.concatenate((state[:6], action, [1])) / np.array([100, 100, 100, 100, 100, 100, 1, 1, 1, 1, 1, 1, 1])
+    return np.array([state[i] * (action[i] + 1) / 200 for i in range(6)] + [1])
 
 
 
@@ -316,22 +336,25 @@ SIM = SixTankModel(fault=ARGS.fault[0])
 if not ARGS.usempc:
 # Create the SLearner instance
     LEARNER = SLearner(reward=reward, simulator=SIM, stateconverter=STATES,
-                    actionconverter=ACTIONS, goal=goal, func=func, funcdim=13,
+                    actionconverter=ACTIONS, goal=goal, func=func, funcdim=FUNCDIM,
                     dfunc=dfunc, lrate=ARGS.rate, discount=ARGS.discount,
                     policy=ARGS.policy, depth=ARGS.maxdepth,
-                    steps=ARGS.steps, seed=ARGS.seed, stepsize=lambda x:DELTA_T)
+                    steps=ARGS.steps, seed=ARGS.seed,
+                    stepsize=hierarchy if ARGS.hierarchical else lambda x:DELTA_T)
 else:
     LEARNER = ModelPredictiveController(dmap=moment, simulator=SIM,
                                         stateconverter=STATES, actionconverter=ACTIONS,
-                                        depth=ARGS.maxdepth, seed=ARGS.seed)
+                                        depth=ARGS.maxdepth, seed=ARGS.seed,
+                                        density=ARGS.density)
 
 
-# Print paramters
-for key, value in vars(ARGS).items():
-    try:
-        print('%12s: %-12s' % (key, value))
-    except:
-        pass
+# Print paramters if verbose
+if ARGS.verbose:
+    for key, value in vars(ARGS).items():
+        try:
+            print('%12s: %-12s' % (key, value))
+        except:
+            pass
 
 
 # Either run interactive server, or multiple trials
@@ -362,7 +385,8 @@ if ARGS.numtrials is None:
         if not ARGS.disable:
             if LEARNER.random.rand() <= ARGS.explore:   # re-learn
                 episodes = LEARNER.neighbours(svec)
-                LEARNER.learn(episodes=episodes)
+                LEARNER.random.shuffle(episodes)
+                LEARNER.learn(episodes=episodes[:int(np.ceil(len(episodes) * ARGS.density))])
             avec[:] = LEARNER.recommend(svec)
 
         svec[:] = LEARNER.next_state(svec, avec)        # compute new results
@@ -377,12 +401,13 @@ if ARGS.numtrials is None:
                             weights=[str(i) for i in w],
                             imbalance=imbalance)   # return cached results
 
-    APP.run()
+    APP.run(debug=1, use_reloader=False, use_evalex=False)
 
 else:
     # Run multiple trials
     imbalances = []     # average imbalance for each trial
     lengths = []        # length of each trial until goal
+    areas = []          # average areas under imbalance curves
     for i in range(ARGS.numtrials):
         LEARNER.simulator.fault = LEARNER.random.choice(ARGS.fault)  # introduce new fault
         if not ARGS.disable:                                    # re-learn on new trial
@@ -391,26 +416,27 @@ else:
 
         svec = np.array(ARGS.initial)   # all trials start with specified initial state
         avec = svec[6:]
-        imbalance = -moment(svec)
+        imbalance = [moment(svec)]
         length = 1
         while True:
             if not ARGS.disable:
                 if LEARNER.random.rand() <= ARGS.explore:   # explore
                     episodes = LEARNER.neighbours(svec)
-                    LEARNER.learn(episodes=episodes)
+                    LEARNER.random.shuffle(episodes)
+                    LEARNER.learn(episodes=episodes[:int(np.ceil(len(episodes) * ARGS.density))])
                 avec = LEARNER.recommend(svec)              # exploit
 
             svec = LEARNER.next_state(svec, avec)
-            imbalance = ((imbalance * length) + -moment(svec)) / (length + 1)
+            imbalance.append(moment(svec))
             length += 1
 
             if goal(svec):                                  # quit trial on goal
-                imbalances.append(imbalance)
+                imbalances.append(max(imbalance))
                 lengths.append(length)
+                areas.append(trapz(imbalance))
                 break
-        
 
-    print('=====')
-    print('Imbalance: {0:5.2f}\tLength: {1:5d}'.format(np.mean(imbalances),\
-                                                       int(np.mean(lengths))))
-    print('=====')
+
+
+    print('MaxImbalance: {0:6.2f}\tLength: {1:6d}\tTotalImbalance: {2:6.2f}'\
+            .format(np.mean(imbalances), int(np.mean(lengths)), np.mean(areas)))

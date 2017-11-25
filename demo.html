@@ -105,6 +105,7 @@
             var update = function() {
                 d3.json('/status', function(data) {
                     count++;
+                    console.log(data.imbalance)
                     imbalances.push(data.imbalance);
                     // update tank level displays
                     d3.selectAll(".tank")

@@ -94,3 +94,6 @@ qlearn/linsim/matlab/
 *.autosave
 slprj/
 *.dat
+*.ps1
+*.txt
+*.zip
