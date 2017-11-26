@@ -96,6 +96,8 @@ args.add_argument('--density', type=float,
                       help="State sampling density (0, 1]. 1 => all neighbours sampled.", default=DENSITY)
 args.add_argument('--numtrials', type=int, metavar='N',
                   help="Run trials instead of interactive server.", default=None)
+args.add_argument('--noise', type=float, metavar='N',
+                  help="Amount of noise in model behaviour.", default=0.0)
 args.add_argument('--verbose', action='store_true',
                   help="Print parameters used.", default=False)
 ARGS = args.parse_args()
@@ -103,10 +105,12 @@ ARGS = args.parse_args()
 
 
 class SixTankModel:
-    def __init__(self, fault=0):
+    def __init__(self, fault=0, noise=0, seed=None):
         self.R = 4.00
         self.F = 8.00
         self.fault = fault
+        self.noise = noise
+        self.random = np.random.RandomState(seed)
 
 
     def set_state(self, S):
@@ -213,8 +217,9 @@ class SixTankModel:
             * (((p / self.R) - (self.tank_4 / self.R)) * (stepsize)) \
             - ((self.tank_4 / self.F) * (stepsize) if self.fault == 6 else 0)
         
-        return([self.tank_1, self.tank_2, self.tank_LA, self.tank_RA, self.tank_3, self.tank_4,
-                self.DL, self.EL, self.FL, self.FR, self.ER, self.DR])
+        noisy = self.random.normal(1, self.noise, 6) * \
+                [self.tank_1, self.tank_2, self.tank_LA, self.tank_RA, self.tank_3, self.tank_4]
+        return np.concatenate((noisy, action))
 
 
 
