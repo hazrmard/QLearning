@@ -20,10 +20,10 @@ Requires:
 
 from argparse import ArgumentParser
 import numpy as np
-from qlearn import TestBench
-from qlearn import QLearner
-from qlearn import FLearner
-from qlearn import FlagGenerator
+from ..qlearn import TestBench
+from ..qlearn import QLearner
+from ..qlearn import FLearner
+from ..qlearn import FlagGenerator
 
 
 

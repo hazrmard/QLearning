@@ -24,13 +24,13 @@ Requires:
 from argparse import ArgumentParser
 import flask
 import numpy as np
-from qlearn import SLearner
-from qlearn.linsim import Netlist
-from qlearn.linsim import Directive
-from qlearn.linsim import Simulator
-from qlearn.linsim import FlagGenerator
-from qlearn.linsim import elements
-from qlearn import utils
+from ..qlearn import SLearner
+from ..qlearn.linsim import Netlist
+from ..qlearn.linsim import Directive
+from ..qlearn.linsim import Simulator
+from ..qlearn.linsim import FlagGenerator
+from ..qlearn.linsim import elements
+from ..qlearn import utils
 
 
 

@@ -44,8 +44,8 @@ import flask
 import numpy as np
 from scipy.integrate import trapz
 from argparse import ArgumentParser
-from qlearn import SLearner
-from qlearn import FlagGenerator
+from ..qlearn import SLearner
+from ..qlearn import FlagGenerator
 
 
 

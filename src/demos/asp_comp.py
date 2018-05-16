@@ -32,8 +32,8 @@ This script uses 2 metrics to compare performance:
 
 import numpy as np
 import matplotlib.pyplot as plt
-from qlearn import QLearner
-from qlearn import TestBench
+from ..qlearn import QLearner
+from ..qlearn import TestBench
 
 NUM_TRIALS = 5                      # Number of topologies to generate
 EPISODES_PER_TRIAL = 50             # Number of points to test per topology

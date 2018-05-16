@@ -32,12 +32,12 @@ Requires:
 import numpy as np
 import flask
 from argparse import ArgumentParser
-from qlearn import Netlist
-from qlearn import Resistor
-from qlearn import FlagGenerator
-from qlearn import Simulator
-from qlearn import SLearner
-from qlearn import utils
+from ..qlearn import Netlist
+from ..qlearn import Resistor
+from ..qlearn import FlagGenerator
+from ..qlearn import Simulator
+from ..qlearn import SLearner
+from ..qlearn import utils
 
 # Default model configuration parameters
 NETLIST_FILE = 'models/fuel_tanks.netlist'
