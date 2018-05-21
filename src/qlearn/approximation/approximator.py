@@ -1,10 +1,12 @@
 """
 Implements the base Approximator class.
 """
-
+from typing import Tuple
+import numpy as np
 
 
 class Approximator:
+
 
     def update(self, *args, **kwargs):
         pass
