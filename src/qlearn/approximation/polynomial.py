@@ -15,6 +15,8 @@ class Polynomial(Approximator):
 
     Args:
     * order (int): The order of the polynomial (>=1).
+    * memory_size: The number of last observations to remember for learning.
+    * batch_size: The minibatch to generate and use at each call to `update`.
     * kwargs: Any keyword arguments to be fed to sklearn.linear_model.SGDRegressor
     which fits to the function. Hard-coded arguments are `warm_start`, `max_iter`,
     and `fit_intercept`.

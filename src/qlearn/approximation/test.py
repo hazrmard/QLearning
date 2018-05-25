@@ -8,7 +8,7 @@ from . import Neural
 
 def gen_data(order, num, indim, outdim=1):
     # generating sample points and sorting them in increasing order
-    x = np.random.rand(num, indim)
+    x = np.random.randint(0, 10, (num, indim))
     # projecting points into higher dimension
     x_ = (x[:, None] ** np.arange(1, order + 1)[:, None]).reshape(x.shape[0], -1, order='c')
     # generating sample weights
@@ -23,7 +23,10 @@ class TestModels(unittest.TestCase):
 
 
     def setUp(self):
-        x, _, y, _ = gen_data(2, 50, 3, 1)
+        dimsize = 10
+        ndims = 3
+        x, _, y, _ = gen_data(2, 50, ndims, 1)
+        self.shape = tuple([dimsize] * ndims)
         self.x = x
         self.y = y.ravel()
         self.epochs = 50
@@ -53,7 +56,7 @@ class TestModels(unittest.TestCase):
 
 
     def test_tabular(self):
-        model = Tabular(lrate=0.3)
+        model = Tabular(self.shape, lrate=0.3)
         self.model_tester(model)
 
 

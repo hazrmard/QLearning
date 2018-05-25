@@ -14,6 +14,10 @@ class Approximator:
 
     def predict(self, *args):
         pass
+
+
+    def max(self, over=()):
+        pass
     
 
     def __getitem__(self, *args):
