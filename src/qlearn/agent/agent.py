@@ -102,7 +102,7 @@ class Agent:
         * A generator of of state tuples.
         """
         while True:
-            yield tuple(self.env.observation_space.sample())
+            yield tuple(self.env.reset())
 
 
     def next_action(self, state):
@@ -213,7 +213,7 @@ class Agent:
         vals = np.array([self.value((*state, *a)) for a in self.actions])
         cumulative_utils = np.cumsum(vals - np.min(vals))
         random_num = self.random.rand() * cumulative_utils[-1]
-        return np.searchsorted(cumulative_utils, random_num)
+        return self.actions[np.searchsorted(cumulative_utils, random_num)]
 
 
     def a_probs(self, state):
