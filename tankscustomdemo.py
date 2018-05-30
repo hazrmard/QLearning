@@ -335,7 +335,7 @@ STATES = FlagGenerator((20, 5, 100), (20, 5, 100), (20, 5, 100), (20, 5, 100),
 ACTIONS = FlagGenerator(2, 2, 2, 2, 2, 2)
 
 # The system with a possible fault
-SIM = SixTankModel(fault=ARGS.fault[0])
+SIM = SixTankModel(fault=ARGS.fault[0], noise=ARGS.noise, seed=ARGS.seed)
 
 
 if not ARGS.usempc:
