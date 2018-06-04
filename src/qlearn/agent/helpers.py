@@ -1,56 +1,62 @@
-from typing import List, Tuple, Union, Iterable, Callable
-import itertools
 from collections import OrderedDict
+from itertools import product
+from typing import Callable, Iterable, List, Tuple, Union
+
 import numpy as np
 from gym.core import Space
-from gym.spaces import MultiBinary, MultiDiscrete, Box, Discrete, Dict
 from gym.spaces import Tuple as TupleSpace
+from gym.spaces import Box, Dict, Discrete, MultiBinary, MultiDiscrete
+from scipy.optimize import minimize
 
 
-def enumerate_discrete_space(space: Space) -> List[Tuple[int]]:
+def enumerate_discrete_space(space: Space, prod: bool = True) -> List[Tuple[int]]:
     """
-    Generates a list of soace coordinates corresponding the the discrete space.
-    i.e a (2,2) MultiDiscrete space becomes [(0,0), (0,1), (1,0), (1,1)].
+    Generates a list of space coordinate tuples corresponding the the discrete space.
+    i.e a (2,2) `MultiDiscrete` space becomes [(0,0), (0,1), (1,0), (1,1)].
 
     Args:
     * space: A discrete space instance from `gym.spaces`.
+    * prod: Whether to return a product or individual enumerations of variables.
+    For e.g for Multibinary(2) with product: (0,0), (0,1), (1,0), (1,1) and
+    without product: [(0,1), (0,1)].
 
     Returns:
-    * A list of tuples of coordinates for each point in the space. For invalid
-    arguments, returns empty list.
+    * Either iterator of tuples of coordinates for each point in the space. For
+    invalid arguments, or for Tuple or Dict spaces with Box
+    spaces that are continuous, returned tuples contain 'None' in place.
+    Or a list of tuples enumerating each variable in a state individually.
     """
-    linspaces = []
+    linspaces = [(None,)]
     if isinstance(space, MultiBinary):
         linspaces = [(0, 1)] * space.n
     elif isinstance(space, Discrete):
-        linspaces = [np.linspace(0, space.n-1, space.n, dtype=space.dtype)]
+        linspaces = [tuple(np.linspace(0, space.n-1, space.n, dtype=space.dtype))]
     elif isinstance(space, MultiDiscrete):
-        linspaces = [np.linspace(0, n-1, n, dtype=space.dtype) for n in space.nvec]
-    elif isinstance(space, Box) and np.issubdtype(space.dtype, np.integer):
-        # TODO: enumerate integer box spaces and preserve shape
-        pass
+        linspaces = [tuple(np.linspace(0, n-1, n, dtype=space.dtype)) for \
+                    n in space.nvec]
+    elif isinstance(space, Box):
+        if np.issubdtype(space.dtype, np.integer):
+            linspaces = [tuple(np.linspace(l, h, h-l+1, dtype=space.dtype)) for \
+                        l, h in zip(space.low.ravel(), space.high.ravel())]
+        else:
+            linspaces = [(None,)] * np.prod(space.shape)
     elif isinstance(space, TupleSpace):
-        subspaces_enum = []
+        linspaces = []
         for subspace in space.spaces:
-            subspaces_enum.append(enumerate_discrete_space(subspace))
-        return list(itertools.product(*subspaces_enum))
+            linspaces.extend(enumerate_discrete_space(subspace, False))
     elif isinstance(space, Dict):
-        subspaces_enum = []
-        keys = space.spaces.keys()
+        linspaces = []
         for _, subspace in space.spaces.items():
-            subspaces_enum.append(enumerate_discrete_space(subspace))
-        enumerated = itertools.product(*subspaces_enum)
-        dictform = [OrderedDict(zip(keys, value)) for value in enumerated]
-        return dictform
-    grids = np.meshgrid(*linspaces)
-    return list(zip(*[g.ravel() for g in grids]))
+            linspaces.extend(enumerate_discrete_space(subspace, False))
+    return product(*linspaces) if prod else linspaces
 
 
 
-def size_discrete_space(space: Space) -> List[Tuple[int]]:
+def size_space(space: Space) -> List[Tuple[int]]:
     """
-    Returns the number of possible states in a discrete space.
-    i.e a (2,2) MultiDiscrete space returns 4.
+    Calculates the size of a space. For continuous spaces, size is simply the
+    range of values (# of states is infinite, however). I.e a (2,2) MultiDiscrete
+    space returns 4. A Box(low=[0,0], high=[3, 2], dtype=float) returns 6.
 
     Args:
     * space: A discrete space instance from `gym.spaces`.
@@ -66,16 +72,17 @@ def size_discrete_space(space: Space) -> List[Tuple[int]]:
         n = space.n
     elif isinstance(space, MultiDiscrete):
         n = np.prod(space.nvec)
-    elif isinstance(space, Box) and np.issubdtype(space.dtype, np.integer):
-        n = np.prod(space.high - space.low)
     elif isinstance(space, Box):
-        n = np.inf
+        if np.issubdtype(space.dtype, np.integer):
+            n = np.prod(space.high - space.low + 1)  # +1 since high is inclusive
+        else:
+            n = np.prod(space.high - space.low)
     elif isinstance(space, TupleSpace):
         for subspace in space.spaces:
-            n *= size_discrete_space(subspace)
+            n *= size_space(subspace)
     elif isinstance(space, Dict):
         for _, subspace in space.spaces.items():
-            n *= size_discrete_space(subspace)
+            n *= size_space(subspace)
     return n
 
 
@@ -110,19 +117,126 @@ def len_space_tuple(space: Space) -> int:
 
 
 
-def to_tuple(space: Space, sample: Union[Tuple, np.ndarray, int, OrderedDict])\
-    -> Tuple:
+def bounds(space: Space) -> Tuple:
     """
-    Converts a sample from one of `gym.core.Space` instances into a flat tuple
-    of values. I.e. a Dict sample {'a':1, 'b':2} becomes (1, 2).
+    Computes the inclusive bounds for each variable in a tuple representing the
+    space. So a TupleSpace(MultiDiscrete(2), MultiBinary([3, 5])) will have
+    bounds of ((0,1), (0,1), (0,1), (0,2), (0, 4)).
 
     Args:
     * space (Space): Space instance describing the sample.
 
     Returns:
+    * A flat tuple of inclusive (low, high) bounds for each variable in state.
+    """
+    if isinstance(space, Discrete):
+        return ((0, space.n-1),)
+    elif isinstance(space, MultiDiscrete):
+        return tuple(zip(np.zeros_like(space.nvec), space.nvec-1))
+    elif isinstance(space, MultiBinary):
+        return tuple([(0, 1)] * space.n)
+    elif isinstance(space, Box):
+        bds = zip(space.low.ravel(), space.high.ravel())
+        bds = [(None if l==-np.inf else l, None if h==np.inf else h) for \
+                    l, h in bds]
+        return tuple(bds)
+    elif isinstance(space, TupleSpace):
+        spaces = space.spaces
+    elif isinstance(space, Dict):
+        spaces = [subspace for _, subspace in space.spaces.items()]
+    flattened = []
+    for subspace in spaces:
+        flattened.extend(bounds(subspace))
+    return tuple(flattened)
+
+
+
+def is_bounded(space: Space) -> Tuple[bool]:
+    """
+    For each variable in a tuple representing the space, returns a boolean
+    indicating if its a bounded variable. So a 
+    TupleSpace(MultiDiscrete(2), Box([-1, -2], [1, inf])) will return a tuple
+    (True, True, True, False).
+
+    Args:
+    * space (Space): Space instance describing the sample.
+
+    Returns:
+    * A flat tuple of booleans indicating if the corresponding variable is finite.
+    """
+    if isinstance(space, Discrete):
+        return (True,)
+    elif isinstance(space, MultiDiscrete):
+        return tuple([True] * len(space.nvec))
+    elif isinstance(space, MultiBinary):
+        return tuple([True] * space.n)
+    elif isinstance(space, Box):
+        low_inf = space.low == -np.inf
+        high_inf = space.high == np.inf
+        return tuple((low_inf | high_inf).ravel())
+    elif isinstance(space, TupleSpace):
+        spaces = space.spaces
+    elif isinstance(space, Dict):
+        spaces = [subspace for _, subspace in space.spaces.items()]
+    flattened = []
+    for subspace in spaces:
+        flattened.extend(is_bounded(subspace))
+    return tuple(flattened)
+
+
+
+def is_continuous(space: Space) -> Tuple[bool]:
+    """
+    Checks whether each variable in space is continuous of discrete. Only True
+    for Box space with float dtype.
+
+    Args:
+    * space: The `gym.core.Space` instance.
+
+    Returns:
+    * A tuple of length equal to variables in space which is True when the
+    corresponding variable is continuous.
+    """
+    continuous = []
+    if isinstance(space, Discrete):
+        return (False,)
+    elif isinstance(space, MultiDiscrete):
+        return tuple([False] * len(space.nvec))
+    elif isinstance(space, MultiBinary):
+        return tuple([False] * space.n)
+    elif isinstance(space, Box):
+        if np.issubdtype(space.dtype, np.integer):
+            res = False
+        else:
+            res = True
+        return tuple([res] * np.prod(space.shape))
+    elif isinstance(space, Dict):
+        spaces = spaces = [subspace for _, subspace in space.spaces.items()]
+    elif isinstance(space, TupleSpace):
+        spaces = space.spaces
+    for s in spaces:
+        continuous.extend(is_continuous(s))
+    return tuple(continuous)
+
+
+
+def to_tuple(space: Space, sample: Union[Tuple, np.ndarray, int, OrderedDict])\
+    -> Tuple:
+    """
+    Converts a sample from one of `gym.spaces` instances into a flat tuple
+    of values. I.e. a Dict sample {'a':1, 'b':2} becomes (1, 2).
+
+    Args:
+    * space (Space): Space instance describing the sample.
+    * sample: The sample (`space.sample()` result type) taken from the space to
+    be flattened.
+
+    Returns:
     * A flat tuple of state variables.
     """
-    if isinstance(space, (Discrete, MultiBinary, MultiDiscrete)):
+    if isinstance(space, Discrete):
+        return tuple((sample,))
+    elif isinstance(space, (MultiBinary, MultiDiscrete)):
         return tuple(sample)
     elif isinstance(space, Box):
         return tuple(sample.ravel())
@@ -140,6 +254,18 @@ def to_tuple(space: Space, sample: Union[Tuple, np.ndarray, int, OrderedDict])\
 
 def to_space(space: Space, sample: Tuple) -> Union[tuple, np.ndarray, int,\
     OrderedDict]:
+    """
+    Reconstructs a `gym.spaces` sample from a flat tuple. Reverse of
+    `to_tuple`. I.e. (1, 2) becomes a Dict sample {'a':1, 'b':2}.
+
+    Args:
+    * space (Space): Space instance describing the sample.
+    * sample: The flat tuple to be reconstructed into a sample (`space.sample()`
+    result type).
+
+    Returns:
+    * Any one of int, tuple, np.array, OrderedDict depending on space.
+    """
     if isinstance(space, Discrete):
         return sample[0]
     elif isinstance(space, (MultiBinary, MultiDiscrete)):
@@ -186,18 +312,18 @@ def to_space(space: Space, sample: Tuple) -> Union[tuple, np.ndarray, int,\
                 sub_len = len_space_tuple(subspace)
                 aggregate[name] = to_space(subspace, sample[i:i+sub_len])
         return aggregate
-    
 
 
 
-def max_discrete(func: Callable[[Tuple], float], over: [Iterable[Tuple]]):
+def max_discrete(func: Callable[[Tuple], float], over: Iterable[Tuple]):
     """
     Calculates the maximum value of a function over a discrete space.
 
     Args:
     * func: The function that accepts a tuple of arguments and returns a float
     to maximize.
-    * over: An iterable of tuples to maximize over.
+    * over: An iterable of argument tuples to maximize over. I.e. the iterable
+    enumerates all the arguments to compare.
 
     Returns a tuple of:
     * The maximum value,
@@ -209,17 +335,58 @@ def max_discrete(func: Callable[[Tuple], float], over: [Iterable[Tuple]]):
 
 
 
-def max_continuous(func: Callable[[Tuple], float], over: [Iterable[Tuple]]):
+def max_continuous(func: Callable[[Tuple], float], over: Iterable[Tuple]) -> \
+    Tuple[float, Tuple]:
     """
     Calculates the maximum value of a function over a continuous range.
 
     Args:
     * func: The function that accepts a tuple of arguments and returns a float
     to maximize.
-    * over: An iterable of tuples describing the "box" to maximize over.
+    * over: An iterable of tuples describing the "box" to maximize over. The
+    number of tuples should equal the number of arguments given to function.
+    For e.g.: func = f(x1, x2) will have over=((x1min, x1max), (x2min, x2max))
 
     Returns a tuple of:
     * The maximum value,
     * The corresponding argument tuple.
     """
-    pass
+    init = np.random.uniform(*zip(*over))
+    res = minimize(lambda x: -func(x), x0=init, bounds=over)
+    return (func(res.x), tuple(res.x))
+
+
+
+def maximum(func: Callable[[Tuple], float], over: Tuple[Tuple], cont: Tuple[bool],\
+    state: Tuple, actions: Iterable[Tuple]) -> Tuple[float, Tuple]:
+    """
+    Calculates the maximum value of a function over a space. The function is
+    of the form `f(state,...,action) -> float`.
+
+    Args:
+    * func: The function that accepts a tuple of arguments and returns a float
+    to maximize.
+    * over: An iterable of tuples describing the "box" to maximize over. The
+    number of tuples should equal the number of arguments given to function.
+    For e.g.: func = f(x1, x2) will have over=((x1min, x1max), (x2min, x2max))
+    * cont: For each variable in space, True if continuous, else False.
+    * state: The prefix argument i.e. the state over which to explore action space.
+    * actions: An iterable of tuples of actions. Result of `enumerate_discrete_space`.
+
+    Returns a tuple of:
+    * The maximum value,
+    * The corresponding action argument tuple.
+    """
+    best = np.inf
+    bestarg = None
+    funcarg = lambda x: -func(x)
+    statebounds = tuple(zip(state, state))
+    for act in actions:
+        actbounds = [b if c else (a, a) for a, c, b in zip(act, cont, over)]
+        init = tuple([*state, *np.random.uniform(*zip(*over))])
+        res = minimize(funcarg, x0=init, bounds=(*statebounds, *actbounds))
+        val = funcarg(res.x)
+        if val < best:
+            best = val
+            bestarg = res.x
+    return (-best, tuple(bestarg[len(state):]))
