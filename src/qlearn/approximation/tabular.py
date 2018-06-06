@@ -2,7 +2,7 @@
 Tabular function approximation.
 """
 
-from typing import Union, Tuple
+from typing import Union, Tuple, Iterable
 import numpy as np
 from .approximator import Approximator
 
@@ -16,23 +16,44 @@ class Tabular(Approximator):
     Assumes all arguments to function are positive integers.
 
     Args:
-    * shape: The tuple containing size of each dimension in table.
+    * dims: The tuple containing size of each dimension in table.
     * lrate: A 0 < float <= 1. representing the learning rate.
+    * low: The lowest limits for each dimension. Defaults to 0.
+    * high: The highest limits for each dimension. Defaults to max. indices.
     """
 
-
-    def __init__(self, dims: Tuple[int], lrate: float=1., default=0.):
+    def __init__(self, dims: Tuple[int], lrate: float=1., \
+        low: Tuple[int]=(), high: Tuple[int]=(), default: float=0.):
         self.lrate = lrate
-        self.table = np.zeros(dims)
-        self.default = default
+        self.table = np.zeros(dims) + default
+        self.shape = np.asarray(dims)
+        self.low = np.asarray(low) if low else np.zeros((len(dims),))
+        self.high = np.asarray(high) if high else np.asarray(dims)
+        self.range = self.high - self.low
+
+
+    def discretize(self, key: Iterable[Union[float, int]]) -> Tuple[int]:
+        """
+        Converts `x` feature tuples into valid indices that can be used to
+        store/access the table.
+
+        Args:
+        * key: The feature tuple.
+
+        Returns:
+        * The corresponding index into `Tabular.table`.
+        """
+        key = (np.asarray(key) - self.low) * self.shape / self.range
+        key = np.clip(key, 0, self.shape-1)
+        return tuple(key.astype(int))
 
 
     def update(self, x: Union[np.ndarray, Tuple], y: float):
-        key = tuple(x)
+        key = self.discretize(x)
         error = self.table[key] - y
         self.table[key] -= self.lrate * error
 
 
-    def predict(self, x: Union[np.ndarray, Tuple]):
-        key = tuple(x)
+    def predict(self, x: Union[np.ndarray, Tuple]) -> float:
+        key = self.discretize(x)
         return self.table[key]

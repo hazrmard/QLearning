@@ -116,7 +116,8 @@ class TestHelpers(unittest.TestCase):
     def test_max_discrete(self):
         over = [(1,), (2,), (3,), (4,)]
         func = lambda x: -x[0]
-        maximum, arg = helpers.max_discrete(func, over)
+        state = tuple()
+        maximum, arg = helpers.max_discrete(func, over, state)
         self.assertEqual(arg, (1,))
         self.assertEqual(maximum, -1)
 
@@ -124,11 +125,12 @@ class TestHelpers(unittest.TestCase):
     def test_max_continuous(self):
         func = lambda x: x[0]**2
         over = ((-2, 2),)
-        maximum, arg = helpers.max_continuous(func, over)
+        state = tuple()
+        maximum, arg = helpers.max_continuous(func, over, state)
         self.assertAlmostEqual(maximum, 4, places=4)
 
 
-    def test_maximum(self):
+    def test_max_hybrid(self):
         def func(arg):
             x, y = arg
             return 10 - x**2 - y**2
@@ -143,9 +145,9 @@ class TestHelpers(unittest.TestCase):
         bounds = helpers.bounds(discrete)
         state = tuple()
 
-        m1, a1 = helpers.maximum(func, bounds, contd, state, helpers.enumerate_discrete_space(discrete))
-        m2, a2 = helpers.maximum(func, bounds, conthc, state, helpers.enumerate_discrete_space(halfcontinuous))
-        m3, a3 = helpers.maximum(func, bounds, contc, state, helpers.enumerate_discrete_space(continuous))
+        m1, a1 = helpers.max_hybrid(func, bounds, state, contd, helpers.enumerate_discrete_space(discrete))
+        m2, a2 = helpers.max_hybrid(func, bounds, state, conthc, helpers.enumerate_discrete_space(halfcontinuous))
+        m3, a3 = helpers.max_hybrid(func, bounds, state, contc, helpers.enumerate_discrete_space(continuous))
 
         self.assertAlmostEqual(m1, 10, places=4)
         self.assertAlmostEqual(m2, 10, places=4)

@@ -1,8 +1,8 @@
 from itertools import zip_longest
-from typing import Generator, Tuple
+from typing import Generator, Tuple, Union, Callable
 
 import numpy as np
-from gym.core import Env
+from gym.core import Env, Space
 
 from . import helpers
 from ..approximation import Approximator
@@ -11,6 +11,7 @@ from ..algorithms import td0
 UNIFORM = 'uniform'
 GREEDY = 'greedy'
 SOFTMAX = 'softmax'
+
 
 
 class Agent:
@@ -27,32 +28,47 @@ class Agent:
     is None.
     """
 
-    def __init__(self, env: Env, value_function: Approximator, discount=1,
-                 policy=UNIFORM, seed=None, greedy_prob=1.0):
+    def __init__(self, env: Env, value_function: Approximator, policy=UNIFORM,\
+        algorithm: Callable=td0, seed=None, greedy_prob=1.0):
         if seed is None:
             self.random = np.random.RandomState()
         else:
             self.random = np.random.RandomState(seed)
 
         self.env = env
+        self.algorithm = algorithm
         # a list of discrete actions. Continuous variables shown as None
         self.actions = list(helpers.enumerate_discrete_space(env.action_space))
-        # [(low, high)] bounds for each variable in action space
-        self.action_bounds = helpers.bounds(self.env.action_space)
-        # True for each continuous action variable
-        self.actions_cont = helpers.is_continuous(self.env.action_space)
-        self.value = value_function
         # action selection policy for learning/exploration
         self._policy = None
-        # probability with which to select most valuable action for GREEDY policy
         self.greedy_prob = 0.
-
         self.set_action_selection_policy(policy, greedy_prob=greedy_prob)
+
+        self.value = value_function
+        self.set_value_optimizer(self.env.action_space)
 
 
     def __str__(self):
         return self.__class__.__name__\
                + ', Policy: ' + self.policy
+
+
+    def set_value_optimizer(self, space: Space):
+        """
+        Sets the appropriate value maximization function depending on a discrete,
+        continuous, hybrid action space.
+        """
+        cont = helpers.is_continuous(space)
+        action_bounds = helpers.bounds(space)
+        if all(cont):
+            self.maximum = lambda s: helpers.max_continuous(self.value.predict,\
+                                    action_bounds, s)
+        elif any(cont):
+            self.maximum = lambda s: helpers.max_hybrid(self.value.predict,\
+                                    action_bounds, cont, s, self.actions)
+        else:
+            self.maximum = lambda s: helpers.max_discrete(self.value.predict,\
+                                    self.actions, s)
 
 
     def set_action_selection_policy(self, policy: str, greedy_prob: float=None):
@@ -97,7 +113,7 @@ class Agent:
             yield helpers.to_tuple(self.env.observation_space, self.env.reset())
 
 
-    def next_action(self, state: Tuple):
+    def next_action(self, state: Tuple[Union[int, float]]):
         """
         Provides a sequence of actions based on the action selection policy.
 
@@ -110,7 +126,7 @@ class Agent:
         return self._policy(state)
 
 
-    def learn(self, episodes=None, actions=(), **kwargs):
+    def learn(self, episodes=100, **kwargs):
         """
         Begins learning procedure over all (state, action) pairs. Populates the
         Q matrix with utility for each (state, action).
@@ -119,29 +135,22 @@ class Agent:
         See Reinforcement Learning - an Introduction by Sutton/Barto (Ch. 7)
 
         Args:
-            episodes (list/generator): States to begin learning episodes from.
-                Defaults to self.episodes().
-            OR
-            actions (list/tuple): A list of actions to take for each starting state
-                provided in episodes. Optional.
-            
-            **kwargs: Any learning parameters (lrate, depth, stepsize, mode, steps,
-                discount, exploration) which are stored.
+        * episodes: Number of eposides to learn over.
+        * kwargs: Any learning parameters required by the learning function.
         Returns:
             A list of lists of states traversed for each episode.
-        """        
-        episodes = episodes if episodes is not None else self.episodes()
+        """
 
         histories = []
         actions = []
-        for i, ep in enumerate(episodes):
-            s, a = td0(self, ep, discount=kwargs.get('discount'))
+        for i in range(episodes):
+            s, a = self.algorithm(self, **kwargs)
             histories.append(s)
             actions.append(a)
         return histories, actions
 
 
-    def recommend(self, state):
+    def recommend(self, state: Tuple[Union[int, float]]):
         """
         Recommends an action based on the learned q matrix and current state.
         Must be called after learn().
@@ -152,12 +161,11 @@ class Agent:
         Returns:
         * Action to take (tuple).
         """
-        value, action = helpers.maximum(self.value.predict, self.action_bounds, \
-                                        self.actions_cont, state, self.actions)
+        value, action = self.maximum(state)
         return action
 
 
-    def _uniform_policy(self, state: Tuple):
+    def _uniform_policy(self, state: Tuple[Union[int, float]]):
         """
         Selects an action based on a uniform probability distribution.
 
@@ -170,7 +178,7 @@ class Agent:
         return helpers.to_tuple(self.env.action_space, self.env.action_space.sample())
 
 
-    def _greedy_policy(self, state: Tuple):
+    def _greedy_policy(self, state: Tuple[Union[int, float]]):
         """
         Select highest utility action with higher probability. Others are
         uniformly selected.
@@ -187,7 +195,7 @@ class Agent:
             return self._uniform_policy(state)
 
 
-    def _softmax_policy(self, state: Tuple):
+    def _softmax_policy(self, state: Tuple[Union[int, float]]):
     #TODO: implement for continuous action spaces
         """
         Selects actions with probability proportional to their utility in
@@ -205,7 +213,7 @@ class Agent:
         return self.actions[np.searchsorted(cumulative_utils, random_num)]
 
 
-    def a_probs(self, state: Tuple):
+    def a_probs(self, state: Tuple[Union[int, float]]):
         """
         Calculates probability of taking all actions from a given state under an
         action selection policy.
@@ -222,7 +230,7 @@ class Agent:
         
         elif self.policy == GREEDY:
             over = zip_longest((state,), self.actions, fillvalue=state)
-            value, action = helpers.max_discrete(self.value, over)
+            value, action = self.maximum(state)
             probs = np.ones(len(self.actions)) * (1 - self.greedy_prob) \
                    / (len(self.actions) - 1)
             probs[self.actions.index(action)] = self.greedy_prob

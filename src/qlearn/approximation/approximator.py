@@ -14,15 +14,11 @@ class Approximator:
 
     def predict(self, *args):
         pass
-
-
-    def max(self, over=()):
-        pass
     
 
     def __getitem__(self, *args):
-        self.predict(*args)
+        return self.predict(*args)
     
 
     def __call__(self, *args, **kwargs):
-        self.update(*args, **kwargs)
+        return self.update(*args, **kwargs)

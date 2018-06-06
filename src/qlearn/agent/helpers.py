@@ -121,7 +121,8 @@ def bounds(space: Space) -> Tuple:
     """
     Computes the inclusive bounds for each variable in a tuple representing the
     space. So a TupleSpace(MultiDiscrete(2), MultiBinary([3, 5])) will have
-    bounds of ((0,1), (0,1), (0,1), (0,2), (0, 4)).
+    bounds of ((0,1), (0,1), (0,1), (0,2), (0, 4)). Infinite limits are returned
+    as None in bounds.
 
     Args:
     * space (Space): Space instance describing the sample.
@@ -315,30 +316,34 @@ def to_space(space: Space, sample: Tuple) -> Union[tuple, np.ndarray, int,\
 
 
 
-def max_discrete(func: Callable[[Tuple], float], over: Iterable[Tuple]):
+def max_discrete(func: Callable[[Tuple], float], over: Iterable[Tuple],\
+    state: Tuple[Union[int, float]]):
     """
     Calculates the maximum value of a function over a discrete space.
+    The function is of the form `f(state,...,action) -> float`.
 
     Args:
     * func: The function that accepts a tuple of arguments and returns a float
     to maximize.
     * over: An iterable of argument tuples to maximize over. I.e. the iterable
     enumerates all the arguments to compare.
+    * state: The prefix argument i.e. the state over which to explore action space.
 
     Returns a tuple of:
     * The maximum value,
     * The corresponding argument tuple.
     """
-    vals = [func(args) for args in over]
+    vals = [func((*state, *action)) for action in over]
     maximum = max(vals)
     return (maximum, over[vals.index(maximum)])
 
 
 
-def max_continuous(func: Callable[[Tuple], float], over: Iterable[Tuple]) -> \
-    Tuple[float, Tuple]:
+def max_continuous(func: Callable[[Tuple], float], over: Iterable[Tuple],\
+    state: Tuple[Union[int, float]]) -> Tuple[float, Tuple[Union[int, float]]]:
     """
-    Calculates the maximum value of a function over a continuous range.
+    Calculates the maximum value of a function over a continuous
+    space. The function is of the form `f(state,...,action) -> float`.
 
     Args:
     * func: The function that accepts a tuple of arguments and returns a float
@@ -346,22 +351,26 @@ def max_continuous(func: Callable[[Tuple], float], over: Iterable[Tuple]) -> \
     * over: An iterable of tuples describing the "box" to maximize over. The
     number of tuples should equal the number of arguments given to function.
     For e.g.: func = f(x1, x2) will have over=((x1min, x1max), (x2min, x2max))
+    * state: The prefix argument i.e. the state over which to explore action space.
 
     Returns a tuple of:
     * The maximum value,
     * The corresponding argument tuple.
     """
-    init = np.random.uniform(*zip(*over))
-    res = minimize(lambda x: -func(x), x0=init, bounds=over)
-    return (func(res.x), tuple(res.x))
+    statebounds = tuple(zip(state, state))
+    init = tuple([*state, *np.random.uniform(*zip(*over))])
+    funcarg = lambda x: -func(x)
+    res = minimize(funcarg, x0=init, bounds=(*statebounds, *over))
+    return (func(res.x), tuple(res.x[len(state):]))
 
 
 
-def maximum(func: Callable[[Tuple], float], over: Tuple[Tuple], cont: Tuple[bool],\
-    state: Tuple, actions: Iterable[Tuple]) -> Tuple[float, Tuple]:
+def max_hybrid(func: Callable[[Tuple], float], over: Tuple[Tuple],\
+    state: Tuple[Union[int, float]], cont: Tuple[bool],\
+    actions: Iterable[Tuple]) -> Tuple[float, Tuple[Union[int, float]]]:
     """
-    Calculates the maximum value of a function over a space. The function is
-    of the form `f(state,...,action) -> float`.
+    Calculates the maximum value of a function over a discrete-continuous hybrid
+    space. The function is of the form `f(state,...,action) -> float`.
 
     Args:
     * func: The function that accepts a tuple of arguments and returns a float
