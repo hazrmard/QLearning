@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from itertools import product
+from itertools import product, zip_longest
 from typing import Callable, Iterable, List, Tuple, Union
 
 import numpy as np
@@ -316,7 +316,7 @@ def to_space(space: Space, sample: Tuple) -> Union[tuple, np.ndarray, int,\
 
 
 
-def max_discrete(func: Callable[[Tuple], float], over: Iterable[Tuple],\
+def max_discrete(func: Callable[[Tuple], np.ndarray], over: Iterable[Tuple],\
     state: Tuple[Union[int, float]]):
     """
     Calculates the maximum value of a function over a discrete space.
@@ -333,13 +333,13 @@ def max_discrete(func: Callable[[Tuple], float], over: Iterable[Tuple],\
     * The maximum value,
     * The corresponding argument tuple.
     """
-    vals = [func((*state, *action)) for action in over]
+    vals = [func(np.asarray((*state, *action)).reshape(1, -1))[0] for action in over]
     maximum = max(vals)
     return (maximum, over[vals.index(maximum)])
 
 
 
-def max_continuous(func: Callable[[Tuple], float], over: Iterable[Tuple],\
+def max_continuous(func: Callable[[Tuple], np.ndarray], over: Iterable[Tuple],\
     state: Tuple[Union[int, float]]) -> Tuple[float, Tuple[Union[int, float]]]:
     """
     Calculates the maximum value of a function over a continuous
@@ -359,13 +359,13 @@ def max_continuous(func: Callable[[Tuple], float], over: Iterable[Tuple],\
     """
     statebounds = tuple(zip(state, state))
     init = tuple([*state, *np.random.uniform(*zip(*over))])
-    funcarg = lambda x: -func(x)
+    funcarg = lambda x: -func(np.asarray(x).reshape(1,-1))[0]
     res = minimize(funcarg, x0=init, bounds=(*statebounds, *over))
-    return (func(res.x), tuple(res.x[len(state):]))
+    return (-funcarg(res.x), tuple(res.x[len(state):]))
 
 
 
-def max_hybrid(func: Callable[[Tuple], float], over: Tuple[Tuple],\
+def max_hybrid(func: Callable[[Tuple], np.ndarray], over: Tuple[Tuple],\
     state: Tuple[Union[int, float]], cont: Tuple[bool],\
     actions: Iterable[Tuple]) -> Tuple[float, Tuple[Union[int, float]]]:
     """
@@ -378,7 +378,7 @@ def max_hybrid(func: Callable[[Tuple], float], over: Tuple[Tuple],\
     * over: An iterable of tuples describing the "box" to maximize over. The
     number of tuples should equal the number of arguments given to function.
     For e.g.: func = f(x1, x2) will have over=((x1min, x1max), (x2min, x2max))
-    * cont: For each variable in space, True if continuous, else False.
+    * cont: For each variable in action space, True if continuous, else False.
     * state: The prefix argument i.e. the state over which to explore action space.
     * actions: An iterable of tuples of actions. Result of `enumerate_discrete_space`.
 
@@ -386,16 +386,17 @@ def max_hybrid(func: Callable[[Tuple], float], over: Tuple[Tuple],\
     * The maximum value,
     * The corresponding action argument tuple.
     """
-    best = np.inf
+    best = -np.inf
     bestarg = None
-    funcarg = lambda x: -func(x)
+    funcarg = lambda x: -func(np.asarray(x).reshape(1,-1))[0]
     statebounds = tuple(zip(state, state))
     for act in actions:
         actbounds = [b if c else (a, a) for a, c, b in zip(act, cont, over)]
         init = tuple([*state, *np.random.uniform(*zip(*over))])
         res = minimize(funcarg, x0=init, bounds=(*statebounds, *actbounds))
-        val = funcarg(res.x)
-        if val < best:
+        val = -funcarg(res.x)
+        if val > best:
             best = val
             bestarg = res.x
-    return (-best, tuple(bestarg[len(state):]))
+    return (best, tuple([float(v) if c else int(v) for v,c in \
+                            zip(bestarg[len(state):], cont)]))

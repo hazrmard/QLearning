@@ -1,3 +1,4 @@
 from .variablenstep import variablenstep
-from .td0 import td0
+from .q import q
 from .tdlambda import tdlambda
+from .nsarsa import nsarsa

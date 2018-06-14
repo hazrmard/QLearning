@@ -1,2 +1,4 @@
 from .agent import Agent
-from . import helpers
+from .agent import UNIFORM, GREEDY, SOFTMAX
+from . import spaces
+from .parameters import Schedule, LinearSchedule, LogarithmicSchedule, ExponentialSchedule

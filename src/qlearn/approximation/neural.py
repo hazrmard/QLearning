@@ -37,7 +37,7 @@ class Neural(Polynomial):
         return x
 
 
-    def update(self, x: Union[np.ndarray, Tuple], y: float):
+    def update(self, x: Union[np.ndarray, Tuple], y: np.ndarray):
         # disable convergence warning for incremental learning
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')

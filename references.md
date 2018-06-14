@@ -1,25 +1,23 @@
 This document contains paper citations, books, and links to online resources 
 that were helpful in this project.
 
-## Libraries
+## 1. Libraries
 
-* [Ahkab](https://ahkab.github.io/ahkab/)
+  1. [OpenAI Gym](https://gym.openai.com)
 
-## Online Resrouces
+## 2. Online Resrouces
 
-* [Machine Learning Tutorials - UNSW CS9417](http://www.cse.unsw.edu.au/~cs9417ml/)
-* [A painless Q-Learning Tutorial](http://mnemstudio.org/path-finding-q-learning-tutorial.htm)
-* [Darts, Dice, and Coins](http://www.keithschwarz.com/darts-dice-coins/)
-* [Diamond-square algorithm](https://en.wikipedia.org/wiki/Diamond-square_algorithm)
-* [Fault algorithm](http://www.lighthouse3d.com/opengl/terrain/index.php?fault)
+1. [Machine Learning Tutorials - UNSW CS9417](http://www.cse.unsw.edu.au/~cs9417ml/)
+2. [A painless Q-Learning Tutorial](http://mnemstudio.org/path-finding-q-learning-tutorial.htm)
+3. [Darts, Dice, and Coins](http://www.keithschwarz.com/darts-dice-coins/)
 
-## Books/Theses
+## 3. Courses
+  
+  1. [Stanford CS234 RL](https://web.stanford.edu/class/cs234/schedule.html)
+  2. [UCL RL](http://www0.cs.ucl.ac.uk/staff/d.silver/web/Teaching.html)
 
-* Artificial Intelligence - Russel, Peter, Norvig
-* [Reinforcement Learning: An Introduction - Sutton, Barto](http://www.incompleteideas.net/sutton/book/the-book.html)
-* [Reinforcement Learning using Neural Networks - Remi Coulom](https://www.remi-coulom.fr/Thesis/)
-
-## Papers
-
-* [Multiresolution state-space discretization for Q-Learning with pseudorandomized
-  discretization](http://ieeexplore.ieee.org/document/5596516/?arnumber=5596516&tag=1)
+## 4. Books/Theses
+  
+  1. Artificial Intelligence - Russel, Peter, Norvig
+  2. [Reinforcement Learning: An Introduction - Sutton, Barto - 2nd Ed](http://www.incompleteideas.net/sutton/book/the-book.html)
+  3. [Reinforcement Learning using Neural Networks - Remi Coulom](https://www.remi-coulom.fr/Thesis/)

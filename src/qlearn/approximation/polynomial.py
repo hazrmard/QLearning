@@ -7,6 +7,7 @@ from typing import Tuple, Union
 import numpy as np
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import SGDRegressor
+from sklearn.preprocessing import PolynomialFeatures
 
 from .approximator import Approximator
 
@@ -24,6 +25,7 @@ class Polynomial(Approximator):
     which fits to the function. Hard-coded arguments are `warm_start`, `max_iter`,
     and `fit_intercept`.
     """
+    # TODO: Move memory/ experience replay to algorithms.
 
     def __init__(self, order: int, memory_size: int, batch_size: int, \
                 default=0., tol: float=1e-3, **kwargs):
@@ -32,7 +34,9 @@ class Polynomial(Approximator):
         self.default = default
         self.memory = []
         self.order = order
-        self.powers: np.ndarray = np.arange(1, self.order + 1)
+        self.transformer = PolynomialFeatures(degree=order, include_bias=False)
+        # self.powers: np.ndarray = np.arange(1, self.order + 1)
+        self.powers = np.arange(1, self.order + 1)[:, None]
         self.model = SGDRegressor(fit_intercept=True, tol=tol, **kwargs)
 
 
@@ -49,8 +53,11 @@ class Polynomial(Approximator):
         # See: https://stackoverflow.com/q/50428668/4591810
         # order='f' : [x1^1, x2^1, x1^2, x2^2...],
         # order='c' : [x1^1, x1^2, ..., x2^1, x2^2]
-        return (x[:, None] ** self.powers).reshape(-1, order='f')  # 1D
-        # return (x[:, None] ** self.powers[:, None]).reshape(x.shape[0], -1, order='c')
+        # return (x[:, None] ** self.powers).reshape(-1, order='f')  # 2D
+        # return (x[:, None] ** self.powers).reshape(x.shape[0], -1, order='c')
+
+        # TODO: A faster polynomial feature generator.
+        return self.transformer.fit_transform(x)
 
 
     def _minibatch_from_memory(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -63,25 +70,28 @@ class Polynomial(Approximator):
         return (np.array(xdata), np.array(ydata))
 
 
-    def update(self, x: Union[np.ndarray, Tuple], y: float):
+    def update(self, x: Union[np.ndarray, Tuple], y: np.ndarray):
         """
         Incrementally update function approximation using stochastic gradient
         descent.
 
         Args:
         * x (Tuple/np.ndarray): A *2D* array representing a single instance.
-        * y (float): The value to be learned at that point.
+        * y (ndarray): A *1D* array of values to be learned at that point.
         """
-        # TODO: update using multiple instances added to memory at once
         x = np.asarray(x)
-        self.memory.append((self._project(x), y))
-        if len(self.memory) > self.memory_size:
-            self.memory.pop(0)
-        xdata, ydata = self._minibatch_from_memory()
+        # Maintain memory by truncaitng excess if size specified
+        if self.memory_size > 0:
+            self.memory.extend(zip(self._project(x), y))
+            if self.memory_size < len(self.memory):
+                self.memory = self.memory[len(self.memory)-self.memory_size:]
+            xdata, ydata = self._minibatch_from_memory()
+        else:
+            xdata, ydata = np.asarray(x), np.asarray(y)
         self.model.partial_fit(xdata, ydata)
 
 
-    def predict(self, x: Union[np.ndarray, Tuple]) -> float:
+    def predict(self, x: Union[np.ndarray, Tuple]) -> np.ndarray:
         """
         Predict value from the learned function given the input x.
 
@@ -89,10 +99,11 @@ class Polynomial(Approximator):
         * x (Tuple/np.ndarray): A *2D* array representing a single instance.
 
         Returns:
-        * A float representing the approximate function value.
+        * A *1D* array of predictions for each feature in `x`.
         """
         x = np.asarray(x)
         try:
-            return self.model.predict(self._project(x).reshape(1, -1))[0]
+            # return self.model.predict(self._project(x).reshape(1, -1))[0]
+            return self.model.predict(self._project(x)).ravel()
         except NotFittedError:
-            return self.default
+            return np.asarray(self.default).ravel()

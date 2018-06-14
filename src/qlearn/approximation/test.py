@@ -33,14 +33,19 @@ class TestModels(unittest.TestCase):
 
 
     def model_tester(self, model):
+        # updates model 1 reading at a time
         errs = []
         for i in range(self.epochs):
             for x, y in zip(self.x, self.y):
+                x = np.asarray(x).reshape(1, -1)  # converting to 2D array
+                y = np.asarray(y).reshape(1)      # converting to 1D array
                 model.update(x, y)
             err = 0
             for x, y in zip(self.x, self.y):
+                x = np.asarray(x).reshape(1, -1)  # converting to 2D array
+                y = np.asarray(y).reshape(1)      # converting to 1D array
                 ypred = model.predict(x)
-                err += abs(ypred - y)
+                err += ((ypred - y)**2).sum()
             errs.append(err)
         self.assertTrue(errs[-1] < errs[0])
 
@@ -60,6 +65,15 @@ class TestModels(unittest.TestCase):
         self.model_tester(model)
 
 
+    # def test_memory(self):
+    #     model = Polynomial(2, 20, 10)
+    #     model.update(self.x, self.y)
+    #     self.assertEqual(len(model.memory), 20)
+    #     model = Neural((2, 3), 20, 10)
+    #     model.update(self.x, self.y)
+    #     self.assertEqual(len(model.memory), 20)
 
 
-unittest.main(verbosity=2)
+
+
+unittest.main(verbosity=0)

@@ -1,24 +1,30 @@
 """
-Implements the standard q-learning algorithm, known as TD(0).
+Implements the standard q-learning algorithm, known as TD(0) for a single
+episode. Q-learning is an off-policy temporal difference learning algorithm.
 """
-from gym.core import Env
+from typing import List
 
-from ..agent.helpers import to_space, to_tuple
+from ..agent.spaces import to_space, to_tuple
 
 
-def td0(agent: 'Agent', discount: float):
+def q(agent: 'Agent', discount: float) -> List[float]:
     """
-    Temporal difference learning with no look-ahead. Uses value iteration to
-    learn policy. Value function is incrementaly learned. New estimate of value
-    is: `V'(s, a) = reward + discount * V(s', a)`.
+    Q-learning: Off-policy Temporal difference learning with no look-ahead.
+    Uses value iteration to learn policy. Value function is incrementaly learned.
+    New estimate of value is:
+
+        `V'(s, a) = reward + discount * max_{a'}V(s', a')`
+
+    Note: Temporal difference methods with off-policy and non-tabular value
+    function approximations may not converge [4.2 Ch. 11.3 - Deadly Triad].
 
     Args:
     * agent: The agent calling the learning function.
     * discount: The discount level for future rewards. Between 0 and 1.
     """
-    # TODO: move updates to end of each episode as a batch call to update()
     states = [to_tuple(agent.env.observation_space, agent.env.reset())]
     actions = []
+    rewards = []
     done = False
     while not done:
         state = states[-1]
@@ -31,8 +37,9 @@ def td0(agent: 'Agent', discount: float):
         nvalue, _ = agent.maximum(nstate)
         ret = reward + discount * nvalue
         # update value function with new estimate
-        agent.value.update((*state, *action), ret)
+        agent.value.update(((*state, *action),), (ret,))
         states.append(nstate)
         actions.append(action)
+        rewards.append(reward)
         # print(state, action, ret)
-    return states, actions
+    return reward
