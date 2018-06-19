@@ -6,14 +6,11 @@ Contains off-policy temporal difference agents:
 * N-step Tree Backup
 """
 
-from typing import Generator, Tuple, Union, Callable, List
-
 import numpy as np
 
-from . import spaces
-from .agent import Agent, UNIFORM, GREEDY, SOFTMAX
+from .agent import Agent, GREEDY
 from .parameters import Schedule
-from ..algorithms import q, tdlambda
+from ..algorithm import q, tdlambda
 
 
 
@@ -24,7 +21,7 @@ class QAgent(Agent):
     """
 
     def learn(self, episodes: int=100, policy: str=GREEDY,\
-        epsilon: Schedule=Schedule(0,), **kwargs) -> List[List[float]]:
+        epsilon: Schedule=Schedule(0,), **kwargs) -> np.ndarray:
         """
         Calls the learning algorithm `episodes` times.
 
@@ -40,8 +37,7 @@ class QAgent(Agent):
         passed as a number.
 
         Returns:
-        * A List of:
-            * Lists of rewards for each episode.
+        * An array of rewards for each episode.
         """
         return super().learn(algorithm=q, episodes=episodes, policy=policy,
             epsilon=epsilon, **kwargs)
@@ -56,7 +52,7 @@ class TDLambdaAgent(Agent):
     """
 
     def learn(self, episodes: int=100, policy: str=GREEDY,\
-        epsilon: Schedule=Schedule(0,), **kwargs) -> List[List[float]]:
+        epsilon: Schedule=Schedule(0,), **kwargs) -> np.ndarray:
         """
         Calls the learning algorithm `episodes` times.
 
@@ -72,8 +68,7 @@ class TDLambdaAgent(Agent):
         passed as a number.
 
         Returns:
-        * A List of:
-            * Lists of rewards for each episode.
+        * An array of rewards for each episode.
         """
         return super().learn(algorithm=tdlambda, episodes=episodes, policy=policy,
             epsilon=epsilon, **kwargs)

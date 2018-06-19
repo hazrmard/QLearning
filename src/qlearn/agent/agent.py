@@ -1,12 +1,16 @@
+"""
+An agent class that uses value iteration and temporal difference learning
+algorithms with experience replay.
+"""
 from itertools import zip_longest
-from typing import Generator, Tuple, Union, Callable, List
+from typing import Generator, Tuple, Union, Callable
 
 import numpy as np
 from gym.core import Env, Space
 
 from . import spaces
+from .memory import Memory
 from .parameters import Schedule, evaluate_schedule_kwargs
-from ..approximation import Approximator
 
 UNIFORM = 'uniform'
 GREEDY = 'greedy'
@@ -17,7 +21,8 @@ SOFTMAX = 'softmax'
 class Agent:
     """
     A single-threaded agent that operates on continuous, discrete, and hybrid
-    state and action spaces. Learning is episodic.
+    state and action spaces. Learning is episodic, based on value iteration, and
+    uses experience-replay.
 
     Args:
     * env: The environment to operate on. Must be compatible with `gym.Env`.
@@ -35,7 +40,7 @@ class Agent:
     maximum value and corresponding action tuple from the value approximation.
     """
 
-    def __init__(self, env: Env, value_function: Approximator, seed=None):
+    def __init__(self, env: Env, value_function: 'Approximator', seed=None):
         if seed is None:
             self.random = np.random.RandomState()
         else:
@@ -77,14 +82,13 @@ class Agent:
                                     self.actions, s)
 
 
-    def set_action_selection_policy(self, policy: str, greedy_prob: float=None):
+    def set_action_selection_policy(self, policy: str):
         """
         Sets a policy for selecting subsequent actions while in a learning
         episode.
 
         Args:
         * policy (str): One of QLearner.[UNIFORM | GREEDY | SOFTMAX].
-        * greedy_prob (float): Probability of choosing action with highest utility [0, 1].
         """
         self.policy = policy
         
@@ -112,9 +116,9 @@ class Agent:
             yield spaces.to_tuple(self.env.observation_space, self.env.reset())
 
 
-
     def learn(self, algorithm: Callable, episodes: int=100, policy: str=GREEDY,\
-        epsilon: Schedule=Schedule(0,), **kwargs) -> List[List[float]]:
+        epsilon: Schedule=Schedule(0,), memsize: int=1, batchsize: int=1,\
+        **kwargs) -> np.ndarray:
         """
         Calls the learning algorithm `episodes` times.
 
@@ -127,21 +131,25 @@ class Agent:
         `agent.[UNIFORM | GREEDY | SOFTMAX]`. Default UNIFORM.
         * episolon: A `Schedule` instance describing how the exploration rate
         changes for each episode (for GREEDY policy).
+        * memsize: Size of experience memory. Default 1 most recent observation.
+        * batchsize: Number of past experiences to replay. Default 1.
         * kwargs: Any learning parameters required by the learning function.
         If a parameter is a `Schedule`, it is evaluated for each episode and
         passed as a number.
 
         Returns:
-        * A List of:
-            * Lists of rewards for each episode.
+        * A List of rewards for each episode.
         """
+        memory = Memory(memsize=memsize, batchsize=batchsize) # experience-replay
         self.set_action_selection_policy(policy)
-        histories = []
+        histories = np.zeros(episodes)  # history of rewards for each episode
+
         for i in range(episodes):
             self.eps_curr = epsilon(i)  # greedy-rate for GREEDY policy
             kw = evaluate_schedule_kwargs(i, **kwargs)
-            r = algorithm(self, **kw)
-            histories.append(r)
+            r = algorithm(self, memory=memory, **kw)
+            histories[i] = r
+        
         return histories
 
 
@@ -209,6 +217,7 @@ class Agent:
 
 
     def a_probs(self, state: Tuple[Union[int, float]]):
+    # TODO: implement for continuous action spaces
         """
         Calculates probability of taking all actions from a given state under an
         action selection policy.

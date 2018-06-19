@@ -6,6 +6,7 @@ import numpy as np
 
 from . import spaces
 from .parameters import *
+from .memory import Memory
 from .agent import Agent, UNIFORM, GREEDY, SOFTMAX
 
 
@@ -293,6 +294,21 @@ class TestSchedules(unittest.TestCase):
             self.assertEqual(len(res), len(kwargs))
             self.assertEqual(res['lin'], kwargs['lin'](i))
             self.assertEqual(res['log'], kwargs['log'](i))
+
+
+
+class TestMemory(unittest.TestCase):
+
+    def test_sample(self):
+        for x in range(1, 5):
+            for y in range(1, 5):
+                m = Memory(x, y)
+                for i in range(10):
+                    m.append(i)
+                    s = m.sample()
+                    self.assertEqual(len(s), y)
+                    self.assertTrue(all([z in m for z in s]))
+        
 
 
 
