@@ -4,22 +4,22 @@ Tests for the linsim package.
 
 import os
 import numpy as np
-try:
-    from flags import FlagGenerator
-    from elements import *
-    from directives import Directive
-    from nodes import Node
-    from blocks import Block
-    from netlist import Netlist
-    from simulate import Simulator
-except ImportError:
-    from .flags import FlagGenerator
-    from .elements import *
-    from .directives import Directive
-    from .nodes import Node
-    from .blocks import Block
-    from .netlist import Netlist
-    from .simulate import Simulator
+# try:
+from .flags import FlagGenerator
+from .elements import *
+from .directives import Directive
+from .nodes import Node
+from .blocks import Block
+from .netlist import Netlist
+from .simulate import Simulator
+# except ImportError:
+#     from flags import FlagGenerator
+#     from elements import *
+#     from directives import Directive
+#     from nodes import Node
+#     from blocks import Block
+#     from netlist import Netlist
+#     from simulate import Simulator
 
 NUM_TESTS = 0
 TESTS_PASSED = 0

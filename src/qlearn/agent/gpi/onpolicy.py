@@ -12,13 +12,13 @@ will reflect the true value of states (and not a biased estimate).
 
 import numpy as np
 
+from ...helpers.parameters import Schedule
+from ...algorithm import nstepsarsa
 from .agent import Agent, GREEDY
-from ..algorithm import nsarsa
-from .parameters import Schedule
 
 
 
-class NSarsaAgent(Agent):
+class NStepSarsaAgent(Agent):
     """
     Implements n-step SARSA: On-policy temporal difference learning which
     considers discounted delayed rewards.
@@ -36,12 +36,16 @@ class NSarsaAgent(Agent):
         `agent.[UNIFORM | GREEDY | SOFTMAX]`. Default UNIFORM.
         * episolon: A `Schedule` instance describing how the exploration rate
         changes for each episode (for GREEDY policy).
-        * kwargs: Any learning parameters required by the learning function.
+        * discount: The discount level for future rewards. Between 0 and 1.
+        * steps: The number of steps to accumulate reward.
+        * maxsteps: Number of steps at most to take if episode continues.
+        * memsize: Size of experience memory. Default 1 most recent observation.
+        * batchsize: Number of past experiences to replay. Default 1.
         If a parameter is a `Schedule`, it is evaluated for each episode and
         passed as a number.
 
         Returns:
         * An array of rewards for each episode.
         """
-        return super().learn(algorithm=nsarsa, episodes=episodes, policy=policy,
+        return super().learn(algorithm=nstepsarsa, episodes=episodes, policy=policy,
             epsilon=epsilon, **kwargs)

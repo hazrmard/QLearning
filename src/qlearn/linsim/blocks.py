@@ -4,12 +4,12 @@ This module defines the Block class which describes a sub-circuit in a netlist.
 
 import re
 import copy
-try:
-    import elements
-    from nodes import Node
-except ImportError:
-    from . import elements
-    from .nodes import Node
+# try:
+from . import elements
+from .nodes import Node
+# except ImportError:
+#     import elements
+#     from nodes import Node
 
 
 class Block:

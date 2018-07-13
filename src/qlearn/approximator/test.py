@@ -56,16 +56,17 @@ class TestModels(unittest.TestCase):
 
 
     def test_neural(self):
-        model = Neural((2, 3), 20, 10)
+        model = Neural((2, 3))
         self.model_tester(model)
 
 
     def test_tabular(self):
         model = Tabular(self.shape, lrate=0.3, low=0, high=1.)
         self.model_tester(model)
+        model = Tabular(self.shape, lrate=0.3, low=0, high=(1.,))
+        self.model_tester(model)
 
 
 
-
-
-unittest.main(verbosity=0)
+if __name__ == '__main__':
+    unittest.main(verbosity=0)

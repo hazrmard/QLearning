@@ -3,14 +3,9 @@ This module defines the Netlist class. It is responsible for parsing and
 editing the netlist.
 """
 
-try:
-    from elements import Element
-    from blocks import Block
-    from directives import Directive
-except ImportError:
-    from .elements import Element
-    from .blocks import Block
-    from .directives import Directive
+from .elements import Element
+from .blocks import Block
+from .directives import Directive
 
 
 class Netlist(Block):

@@ -2,10 +2,10 @@
 Defines various algorithms for reinforcement learning.
 """
 
-from .variablenstep import variablenstep
+# from .variablenstep import variablenstep
 from .q import q
-from .tdlambda import tdlambda
-from .nsarsa import nsarsa
+from .nsteptd import nsteptd
+from .nstepsarsa import nstepsarsa
 
 # TODO: compare performance of using collections.deque for storing reward, action
 # histories vs using lists.

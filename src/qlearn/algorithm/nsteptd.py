@@ -1,30 +1,33 @@
 """
-Implements the multi-step q-learning algorithm, known as TD(lambda) for a single
+Implements the multi-step q-learning algorithm, known as n-step TD for a single
 episode.
 """
-from typing import List
 
 import numpy as np
 
-from ..agent.spaces import to_space, to_tuple
+from ..helpers.spaces import to_space, to_tuple, len_space_tuple
 
 
-def tdlambda(agent: 'Agent', discount: float, steps: int=0) -> List[float]:
+def nsteptd(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
+    maxsteps: int=np.inf, **kwargs) -> float:
     """
     Off-policy temporal difference learning with delayed rewards. Extension
     of qlearning `q` algorithm with muiti-step loopahead. Uses value
     iteration to learn policy. Value function is incrementaly learned. New
     estimate of value (`V'`) is (`d`=discount, `r`=reward):
 
-        `V'(s, a) = r + d * max_{a'}V(s', a') + d^2 * max_{a''}V(s'', a'') + ...`
+        `Q'(s, a) = r + d * max_{a'}Q(s', a') + d^2 * max_{a''}Q(s'', a'') + ...`
 
     Note: Temporal difference methods with off-policy and non-tabular value
     function approximations may not converge [4.2 Ch. 11.3 - Deadly Triad].
 
     Args:
     * agent: The agent calling the learning function.
+    * memory: A Memory instance that can store and sample past observations.
     * discount: The discount level for future rewards. Between 0 and 1.
     * steps: The number of steps to accumulate reward.
+    * maxsteps: Number of steps at most to take if episode continues.
+    * kwargs: All other keyword arguments discarded silently.
     """
     # Illustration of various TD methods at timestep 't'. tau is the state whose
     # value is updated. t is the current timestep of the episode.
@@ -38,11 +41,15 @@ def tdlambda(agent: 'Agent', discount: float, steps: int=0) -> List[float]:
     states = [to_tuple(agent.env.observation_space, agent.env.reset())]
     actions = []    # history of actions in episode
     rewards = []    # history of rewards for actions
-    returns = []    # contains returns as new estimates of value to be learned
     done = False
-    T = np.inf      # termination time (i.e. terminal state)
+    T = maxsteps    # termination time (i.e. terminal state)
     tau = 0         # time of state being updated
     t = 0           # time from beginning of episode i.e current timestep
+
+    # preallocate arrays for states (X) -> value targets (Y) for approximator
+    batchX = np.zeros((memory.batchsize, len(states[-1]) + \
+                        len_space_tuple(agent.env.action_space)))
+    batchY = np.zeros(memory.batchsize)
 
     # update states until penultimate state. No action is taken from the final
     # state, therefore there is no reward to consider.
@@ -68,13 +75,22 @@ def tdlambda(agent: 'Agent', discount: float, steps: int=0) -> List[float]:
         # returns for states observed earlier.
         tau = t - steps
         if tau >= 0:
-            ret, k = 0., 0
+            partial_ret, k = 0., 0
             for k in range(tau, min(tau + steps + 1, T)):
-                ret += discount**k * rewards[k]
-            nvalue, _ = agent.maximum(states[k+1])
-            ret += discount**(k+1) * nvalue
+                partial_ret += discount**k * rewards[k]
+
+            # memorize experience
+            memory.append((states[tau], actions[tau], partial_ret, states[k+1], k))
+            # replay experience from memory
+            samples = memory.sample()
+            for i, (s, a, partial_r, ns, k) in enumerate(samples):
+                # calculate new estimate of return
+                nvalue, _ = agent.maximum(ns)
+                ret = partial_r + discount**(k+1) * nvalue
+                # fill batch with state/actions -> values
+                batchX[i] = [*s, *a]
+                batchY[i] = ret
             # update value function with new estimate
-            returns.append(ret)
-            agent.value.update(((*states[tau], *actions[tau]),), (ret,))
+            agent.value.update(batchX, batchY)
         t += 1
-    return rewards
+    return np.sum(rewards)

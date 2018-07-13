@@ -1,26 +1,20 @@
 """
-Implements the multi-step q-learning algorithm, known as TD(lambda) for a single
-episode.
+Implements the multi-step SARSA for a single episode. n-SARSA is on-policy.
 """
-from typing import List
 
 import numpy as np
 
-from ..agent.spaces import to_space, to_tuple, len_space_tuple
+from ..helpers.spaces import to_space, to_tuple, len_space_tuple
 
 
-def tdlambda(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
+def nstepsarsa(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
     maxsteps: int=np.inf, **kwargs) -> float:
     """
-    Off-policy temporal difference learning with delayed rewards. Extension
-    of qlearning `q` algorithm with muiti-step loopahead. Uses value
-    iteration to learn policy. Value function is incrementaly learned. New
+    On-policy temporal difference learning with delayed rewards.
+    Value function is incrementaly learned. New
     estimate of value (`V'`) is (`d`=discount, `r`=reward):
 
-        `Q'(s, a) = r + d * max_{a'}Q(s', a') + d^2 * max_{a''}Q(s'', a'') + ...`
-
-    Note: Temporal difference methods with off-policy and non-tabular value
-    function approximations may not converge [4.2 Ch. 11.3 - Deadly Triad].
+        `Q'(s, a) = r + d * Q(s', a') + d^2 * Q(s'', a'') + ...`
 
     Args:
     * agent: The agent calling the learning function.
@@ -40,7 +34,7 @@ def tdlambda(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
     #                tau  -   -         TD(2) - current + delayed rewards
     #                        tau        TD(0) - only current reward
     states = [to_tuple(agent.env.observation_space, agent.env.reset())]
-    actions = []    # history of actions in episode
+    actions = [agent.next_action(states[-1])]
     rewards = []    # history of rewards for actions
     done = False
     T = maxsteps    # termination time (i.e. terminal state)
@@ -58,11 +52,11 @@ def tdlambda(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
         # Observe new states until episode ends.
         if t < T:
             state = states[-1]
-            action = agent.next_action(state)    # select exploratory action
-            actions.append(action)               # store history of actions
-            # Observe next state and rewards
+            action = actions[-1]                 # select exploratory action
+            # Observe next state/action pair and rewards
             nstate, reward, done, _ = agent.env.step(to_space(agent.env.action_space, action))
             nstate = to_tuple(agent.env.observation_space, nstate)
+            actions.append(agent.next_action(nstate))
             states.append(nstate)    # store history of states
             rewards.append(reward)   # accumulate rewards for aggregation
             if done:
@@ -81,12 +75,13 @@ def tdlambda(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
                 partial_ret += discount**k * rewards[k]
             
             # memorize experience
-            memory.append((states[tau], actions[tau], partial_ret, states[k+1], k))
+            memory.append((states[tau], actions[tau], partial_ret, states[k+1],\
+                            actions[k+1], k))
             # replay experience from memory
             samples = memory.sample()
-            for i, (s, a, partial_r, ns, k) in enumerate(samples):
+            for i, (s, a, partial_r, ns, na, k) in enumerate(samples):
                 # calculate new estimate of return
-                nvalue, _ = agent.maximum(ns)
+                nvalue = agent.value.predict(((*ns, *na),))[0]
                 ret = partial_r + discount**(k+1) * nvalue
                 # fill batch with state/actions -> values
                 batchX[i] = [*s, *a]

@@ -5,6 +5,7 @@ Implements a polynomial function approximation.
 from typing import Tuple, Union
 
 import numpy as np
+from numpy.random import RandomState
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import SGDRegressor
 from sklearn.preprocessing import PolynomialFeatures
@@ -18,30 +19,26 @@ class Polynomial(Approximator):
 
     Args:
     * order (int): The order of the polynomial (>=1).
-    * memory_size: The number of last observations to remember for learning.
-    * batch_size: The minibatch to generate and use at each call to `update`.
+    * random_state: Integer seed or `np.random.RandomState` instance.
     * default (float): The default value to return if predict called before fit.
     * kwargs: Any keyword arguments to be fed to sklearn.linear_model.SGDRegressor
     which fits to the function. Hard-coded arguments are `warm_start`, `max_iter`,
     and `fit_intercept`.
     """
-    # TODO: Move memory/ experience replay to algorithms.
 
-    def __init__(self, order: int, default=0., tol: float=1e-3, **kwargs):
-        # self.memory_size = memory_size
-        # self.batch_size = batch_size
+    def __init__(self, order: int, default=0., tol: float=1e-3,\
+        random_state: Union[int, RandomState] = None, **kwargs):
         self.default = default
-        # self.memory = []
         self.order = order
         self.transformer = PolynomialFeatures(degree=order, include_bias=False)
-        # self.powers: np.ndarray = np.arange(1, self.order + 1)
         self.powers = np.arange(1, self.order + 1)[:, None]
+        kwargs['random_state'] = random_state   # to be passed to SGDRegressor
         self.model = SGDRegressor(fit_intercept=True, tol=tol, **kwargs)
 
 
     def _project(self, x: np.ndarray) -> np.ndarray:
         """
-        Converts an input instance into higher dimensions consistemt with the
+        Converts an input instance into higher dimensions consistent with the
         order of the polynomial being approximated.
 
         Args:
@@ -59,16 +56,6 @@ class Polynomial(Approximator):
         return self.transformer.fit_transform(x)
 
 
-    # def _minibatch_from_memory(self) -> Tuple[np.ndarray, np.ndarray]:
-    #     """
-    #     Randomly samples instances from the replay memory.
-    #     """
-    #     indices = np.random.randint(0, len(self.memory), self.batch_size)
-    #     chosen = [self.memory[i] for i in indices]
-    #     xdata, ydata = list(zip(*chosen))
-    #     return (np.array(xdata), np.array(ydata))
-
-
     def update(self, x: Union[np.ndarray, Tuple], y: Union[np.ndarray, Tuple]):
         """
         Incrementally update function approximation using stochastic gradient
@@ -79,15 +66,7 @@ class Polynomial(Approximator):
         * y (ndarray): A *1D* array of values to be learned at that point.
         """
         x, y = np.asarray(x), np.asarray(y)
-        # Maintain memory by truncaitng excess if size specified
-        # if self.memory_size > 0:
-        #     self.memory.extend(zip(self._project(x), y))
-        #     if self.memory_size < len(self.memory):
-        #         self.memory = self.memory[len(self.memory)-self.memory_size:]
-        #     xdata, ydata = self._minibatch_from_memory()
-        # else:
-        #     xdata, ydata = np.asarray(x), np.asarray(y)
-        self.model.partial_fit(x, y)
+        self.model.partial_fit(self._project(x), y)
 
 
     def predict(self, x: Union[np.ndarray, Tuple]) -> np.ndarray:

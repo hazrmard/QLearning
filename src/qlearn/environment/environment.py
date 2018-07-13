@@ -12,6 +12,8 @@ class Environment(Env):
     """
     Environment is a convenience wrapper for the openai gym's `Env` class. It
     encapsulates transition, reward, and goal functions into a cohesive object.
+    The environment state is persistent - it remembers its last state from the
+    previous call to `Environment.step()`.
 
     Args:
     * reward: A function that takes starting state, action, next state and returns
@@ -20,7 +22,7 @@ class Environment(Env):
     the next state.
     * state_space: A `Space` object representing the range of values state variables
     can take.
-    * action_space: A `Space` object representign the range of values actions
+    * action_space: A `Space` object representing the range of values actions
     can take.
 
     Note: All spaces/actions are used as tuples.
@@ -39,18 +41,20 @@ class Environment(Env):
         self.state = self.reset()
 
 
-    def step(self, action) -> Tuple[Tuple, float, bool, object]:
+    def step(self, action, state=None) -> Tuple[Tuple, float, bool, object]:
         """
         Given an action, compute the next state and reward of the environment.
 
         Args:
         * action (Tuple): A tuple specifying the action to take.
+        * state (Tuple): The state to take the action from - optional.
 
         Returns a tuple of:
         * new state (Tuple), reward (float), terminal state (bool), misc info
         """
         action = tuple(action)
-        nstate = tuple(self.transition(self.state, action))
+        state = self.state if state is None else state
+        nstate = tuple(self.transition(state, action))
         reward = self.reward(self.state, action, nstate)
         self.state = nstate
         done = self.goal(self.state)

@@ -4,10 +4,10 @@ informs the type of simulation, defines element models, and provodes control
 flow in the netlist.
 """
 
-try:
-    from elements import Element
-except ImportError:
-    from .elements import Element
+# try:
+from .elements import Element
+# except ImportError:
+#     from elements import Element
 
 
 class Directive(Element):

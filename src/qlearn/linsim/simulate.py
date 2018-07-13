@@ -10,12 +10,15 @@ All simulators expose the following interface:
 """
 
 import os
+import sys
 os.environ['LANG'] = 'en_US.UTF-8'
-import ahkab
 import numpy as np
-
-# Fixed time-step too small error. Make larger if errors persist.
-ahkab.options.transient_max_nr_iter = 1000
+try:
+    import ahkab
+    # Fixed time-step too small error. Make larger if errors persist.
+    ahkab.options.transient_max_nr_iter = 1000
+except ModuleNotFoundError:
+    print('Ahkab not installed', file=sys.stderr)
 
 
 class Simulator:

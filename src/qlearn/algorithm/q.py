@@ -4,7 +4,7 @@ episode. Q-learning is an off-policy temporal difference learning algorithm.
 """
 import numpy as np
 
-from ..agent.spaces import to_space, to_tuple, len_space_tuple
+from ..helpers.spaces import to_space, to_tuple, len_space_tuple
 
 
 def q(agent: 'Agent', memory: 'Memory', discount: float, maxsteps: int=np.inf,\
@@ -43,7 +43,7 @@ def q(agent: 'Agent', memory: 'Memory', discount: float, maxsteps: int=np.inf,\
         # observe next state and rewards
         nstate, reward, done, _ = agent.env.step(to_space(agent.env.action_space, action))
         nstate = to_tuple(agent.env.observation_space, nstate)
-        
+
         # memorize experience
         memory.append((state, action, reward, nstate))
         # replay experience from memory

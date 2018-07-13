@@ -2,12 +2,14 @@
 Implemants fully-connected artificial neural network function approximation.
 """
 
-from typing import Tuple, Union
 import warnings
+from typing import Tuple, Union
+
 import numpy as np
-from .polynomial import Polynomial
+from numpy.random import RandomState
 from sklearn.neural_network import MLPRegressor
 
+from .polynomial import Polynomial
 
 
 class Neural(Polynomial):
@@ -17,18 +19,17 @@ class Neural(Polynomial):
     Args:
     * hidden_layer_sizes: A tuple of ints representing number of units in each
     hidden layer.
-    * memory_size: The number of last observations to remember for learning.
-    * batch_size: The minibatch to generate and use at each call to `update`.
+    * random_state: Integer seed or `np.random.RandomState` instance.
+    * default (float): The default value to return if predict called before fit.
     * kwargs: Any keyword arguments to be fed to `sklearn.neural_network.MPLRegressor`
     which fits to the function. Hard-coded arguments are `warm_start`, `max_iter`.
     """
 
 
-    def __init__(self, hidden_layer_sizes: Tuple[int], default = 0., **kwargs):
-        # self.memory_size = memory_size
-        # self.batch_size = batch_size
-        # self.memory = []
+    def __init__(self, hidden_layer_sizes: Tuple[int], default = 0.,\
+        random_state: Union[int, RandomState] = None, **kwargs):
         self.default = default
+        kwargs['random_state'] = random_state   # to be passed to MLPRegressor
         self.model = MLPRegressor(hidden_layer_sizes, **kwargs)
 
 

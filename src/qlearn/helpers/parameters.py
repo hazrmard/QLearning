@@ -4,8 +4,6 @@ schedules return a sequence of values beginning from `init` at  `step=0` and
 ending at `final` at step=`steps`.
 """
 
-from typing import Callable
-
 import numpy as np
 
 
@@ -21,7 +19,7 @@ class Schedule:
         self.steps = np.inf
 
 
-    def __call__(self, at):
+    def __call__(self, at: int=None):
         return self.init
 
 
@@ -38,13 +36,13 @@ class LinearSchedule(Schedule):
         self.init = init
         self.final = final
         self.steps = steps
-        if final > init:
-            self.slope = (final - init + 1) / steps
-        else:
-            self.slope = (final - init - 1) / steps
+        self.slope = (final - init) / (steps - 1)
+        self.at = 0
 
 
-    def __call__(self, at):
+    def __call__(self, at: int=None):
+        at = self.at if at is None else at
+        self.at = at + 1
         return np.clip(self.init + self.slope * at, self.low, self.high)
 
 
@@ -61,10 +59,13 @@ class LogarithmicSchedule(Schedule):
         self.init = init
         self.final = final
         self.steps = steps
-        self.logbase = np.log(steps) / (abs(final - init))
+        self.logbase = np.log(steps) / abs(final - init)
+        self.at = 0
 
 
-    def __call__(self, at):
+    def __call__(self, at: int=None):
+        at = np.clip(self.at if at is None else at, 0, self.steps - 1)
+        self.at = at + 1
         if self.final > self.init:
             return np.clip(self.init + np.log(at + 1) / self.logbase, self.low,\
                         self.high)
@@ -75,16 +76,29 @@ class LogarithmicSchedule(Schedule):
 
 
 class ExponentialSchedule(Schedule):
+    """
+    An exponentially increasing/decreasing schedule. Value changes from `init`
+    to `final` over `steps` calls.
+    """
 
     def __init__(self, init: float, final: float, steps: int):
-        a, b = min(init, final), max(init, final)
+        self.low, self.high = min(init, final), max(init, final)
         self.init = init
         self.final = final
         self.steps = steps
+        self.multiplier = (self.high - self.low + 1) / np.exp(steps - 1)
+        self.at = 0
 
 
-    def __call__(self, at):
-        return
+    def __call__(self, at: int=None):
+        at = np.clip(self.at if at is None else at, 0, self.steps - 1)
+        self.at = at + 1
+        if self.final > self.init:
+            return np.clip(self.init + (np.exp(at) - 1) * self.multiplier,\
+                        self.low, self.high)
+        else:
+            return np.clip(self.final + (np.exp(self.steps - 1 - at) - 1) \
+                    * self.multiplier, self.low, self.high)
 
 
 

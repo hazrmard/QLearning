@@ -7,10 +7,7 @@ definitions as defined in this module.
 """
 
 import re
-try:
-    from nodes import Node
-except ImportError:
-    from .nodes import Node
+from .nodes import Node
 
 
 class Element:

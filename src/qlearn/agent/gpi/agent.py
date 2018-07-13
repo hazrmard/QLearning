@@ -1,16 +1,17 @@
 """
-An agent class that uses value iteration and temporal difference learning
-algorithms with experience replay.
+The base `Agent` class for Generalized Policy Iteration. Relies on a value
+function to derive policy and take actions.
 """
 from itertools import zip_longest
 from typing import Generator, Tuple, Union, Callable
 
 import numpy as np
+from numpy.random import RandomState
 from gym.core import Env, Space
 
-from . import spaces
-from .memory import Memory
-from .parameters import Schedule, evaluate_schedule_kwargs
+from ...helpers import spaces, maximum
+from ...helpers.parameters import Schedule, evaluate_schedule_kwargs
+from ..memory import Memory
 
 UNIFORM = 'uniform'
 GREEDY = 'greedy'
@@ -21,15 +22,14 @@ SOFTMAX = 'softmax'
 class Agent:
     """
     A single-threaded agent that operates on continuous, discrete, and hybrid
-    state and action spaces. Learning is episodic, based on value iteration, and
-    uses experience-replay.
+    state and action spaces. Learning is episodic, based on generalized policy
+    iteration, and uses experience-replay.
 
     Args:
     * env: The environment to operate on. Must be compatible with `gym.Env`.
     * value_function: An `Approximator` instance that learns to map `state, action`
     tuples to their values.
-    * seed (int): A seed for all random number generation in instance. Default
-    is None.
+    * random_state: Integer seed or `np.random.RandomState` instance.
 
     Attributes:
     * next_action (Callable): A function that takes a state tuple and returns
@@ -40,19 +40,15 @@ class Agent:
     maximum value and corresponding action tuple from the value approximation.
     """
 
-    def __init__(self, env: Env, value_function: 'Approximator', seed=None):
-        if seed is None:
-            self.random = np.random.RandomState()
-        else:
-            self.random = np.random.RandomState(seed)
-
+    def __init__(self, env: Env, value_function: 'Approximator',\
+        random_state: Union[int, RandomState] = None):
+        self.random = random_state if isinstance(random_state, RandomState)\
+                      else RandomState(random_state)
         self.env = env
         # a list of discrete actions. Continuous variables shown as None
         self.actions = list(spaces.enumerate_discrete_space(env.action_space))
         # partially-greedy exploration rate
         self.eps_curr = 0.
-        # self.greedy_prob = greedy_prob
-        # self.set_action_selection_policy(policy, greedy_prob=greedy_prob)
 
         self.value = value_function
         self.set_value_optimizer(self.env.action_space)
@@ -67,18 +63,20 @@ class Agent:
         Sets the appropriate value maximization function depending on a discrete,
         continuous, hybrid action space.
         """
+        # TODO: Allow for discrete maximization over continuous spaces in case
+        # the learned value function is discrete/ does not have a defined minimum.
         cont = spaces.is_continuous(space)
         action_bounds = spaces.bounds(space)
         if all(cont):
-            self.maximum = lambda s: spaces.max_continuous(self.value.predict,\
+            self.maximum = lambda s: maximum.max_continuous(self.value.predict,\
                                     action_bounds, s)
         
         elif any(cont):
-            self.maximum = lambda s: spaces.max_hybrid(self.value.predict,\
+            self.maximum = lambda s: maximum.max_hybrid(self.value.predict,\
                                     action_bounds, cont, s, self.actions)
         
         else:
-            self.maximum = lambda s: spaces.max_discrete(self.value.predict,\
+            self.maximum = lambda s: maximum.max_discrete(self.value.predict,\
                                     self.actions, s)
 
 
@@ -91,7 +89,7 @@ class Agent:
         * policy (str): One of QLearner.[UNIFORM | GREEDY | SOFTMAX].
         """
         self.policy = policy
-        
+
         if policy == UNIFORM:
             self.next_action = self._uniform_policy
 
@@ -143,6 +141,7 @@ class Agent:
         memory = Memory(memsize=memsize, batchsize=batchsize) # experience-replay
         self.set_action_selection_policy(policy)
         histories = np.zeros(episodes)  # history of rewards for each episode
+        epsilon = Schedule(epsilon) if not isinstance(epsilon, Schedule) else epsilon
 
         for i in range(episodes):
             self.eps_curr = epsilon(i)  # greedy-rate for GREEDY policy
@@ -229,7 +228,6 @@ class Agent:
         Returns:
         * A numpy array of action probabilities.
         """
-        # TODO: finish for continuous action spaces.
         if self.policy == UNIFORM:
             return np.ones(len(self.actions)) / len(self.actions)
         
