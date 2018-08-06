@@ -84,4 +84,4 @@ class Polynomial(Approximator):
             # return self.model.predict(self._project(x).reshape(1, -1))[0]
             return self.model.predict(self._project(x)).ravel()
         except NotFittedError:
-            return np.asarray(self.default).ravel()
+            return np.ones(len(x)) * self.default

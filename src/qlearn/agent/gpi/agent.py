@@ -136,7 +136,7 @@ class Agent:
         passed as a number.
 
         Returns:
-        * A List of rewards for each episode.
+        * A List of average rewards for each episode.
         """
         memory = Memory(memsize=memsize, batchsize=batchsize) # experience-replay
         self.set_action_selection_policy(policy)

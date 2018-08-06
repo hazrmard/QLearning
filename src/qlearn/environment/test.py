@@ -1,8 +1,9 @@
 import unittest
+
 import numpy as np
 from gym.spaces import MultiDiscrete
-from . import Environment
 
+from . import dummy, Environment
 
 
 class TestEnvironment(unittest.TestCase):
@@ -16,9 +17,10 @@ class TestEnvironment(unittest.TestCase):
         action_space = MultiDiscrete([act_size])
         tmatrix = np.random.randint(0, env_size, (env_size, act_size))
         rmatrix = np.random.rand(env_size)
-        goals = set(np.random.randint(0, env_size, num_goals))
+        goals = np.random.randint(0, env_size, num_goals)
         is_goal = lambda s: s in goals
-        self.transition = lambda s, a: tmatrix[(*s, *a)]
+        
+        self.transition = lambda s, a: tuple(tmatrix[(*s, *a)])
         self.reward = lambda s, a, ns: rmatrix[ns]
         self.env = Environment(self.reward, self.transition, state_space,\
                                 action_space, is_goal)
@@ -31,6 +33,16 @@ class TestEnvironment(unittest.TestCase):
             self.assertIsInstance(ns, tuple)
             self.assertIsInstance(r, float)
             self.assertIsInstance(g, bool)
+
+
+
+class TestDummyEnv(unittest.TestCase):
+
+
+    def test_step(self):
+        env = dummy.Dummy1DContinuous()
+        for i in range(10):
+            s, r, d, _ = env.step(env.action_space.sample())
 
 
 

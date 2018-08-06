@@ -8,14 +8,14 @@ import numpy as np
 class Approximator:
 
 
-    def update(self, x: Union[np.ndarray, Tuple], y: np.ndarray):
+    def update(self, x: Union[np.ndarray, Tuple], y: Union[np.ndarray, Tuple]):
         """
         Update function approximation using stochastic gradient
         descent.
 
         Args:
         * x (Tuple/np.ndarray): A *2D* array representing a single instance.
-        * y (ndarray): A *1D* array of values to be learned at that point.
+        * y (Tuple, ndarray): A *1D* array of values to be learned at that point.
         """
         pass
     
