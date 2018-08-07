@@ -47,6 +47,16 @@ class Neural(Polynomial):
 
 
     def update(self, x: Union[np.ndarray, Tuple], y: Union[np.ndarray, Tuple]):
+        """
+        Incrementally update function approximation using stochastic gradient
+        descent.
+
+        Args:
+        * x (Tuple/np.ndarray): A *2D* array representing a single instance in
+        each row.
+        * y (Tuple, ndarray): A *1D* array of values to be learned at that point
+        corresponding to each row of features in x.
+        """
         # disable convergence warning for incremental learning
         with warnings.catch_warnings():
             warnings.simplefilter('once')

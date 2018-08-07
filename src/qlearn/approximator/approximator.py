@@ -14,8 +14,10 @@ class Approximator:
         descent.
 
         Args:
-        * x (Tuple/np.ndarray): A *2D* array representing a single instance.
-        * y (Tuple, ndarray): A *1D* array of values to be learned at that point.
+        * x (Tuple/np.ndarray): A *2D* array representing a single instance in
+        each row.
+        * y (Tuple, ndarray): A *1D* array of values to be learned at that point
+        corresponding to each row of features in x.
         """
         pass
     

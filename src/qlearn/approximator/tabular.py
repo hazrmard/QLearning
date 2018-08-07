@@ -58,6 +58,16 @@ class Tabular(Approximator):
 
 
     def update(self, x: Union[np.ndarray, Tuple], y: Union[np.ndarray, Tuple]):
+        """
+        Incrementally update function approximation using stochastic gradient
+        descent.
+
+        Args:
+        * x (Tuple/np.ndarray): A *2D* array representing a single instance in
+        each row.
+        * y (Tuple, ndarray): A *1D* array of values to be learned at that point
+        corresponding to each row of features in x.
+        """
         y = np.asarray(y)
         keys = [self.discretize(x_) for x_ in x]
         indices = list(zip(*keys))
@@ -66,5 +76,15 @@ class Tabular(Approximator):
 
 
     def predict(self, x: Union[np.ndarray, Tuple]) -> np.ndarray:
+        """
+        Predict value from the learned function given the input x.
+
+        Args:
+        * x (Tuple/np.ndarray): A *2D* array representing a single instance in
+        each row.
+
+        Returns:
+        * A *1D* array of predictions for each instance in `x`.
+        """
         keys = [self.discretize(x_) for x_ in x]
         return self.table[list(zip(*keys))]

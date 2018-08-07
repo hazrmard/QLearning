@@ -62,8 +62,10 @@ class Polynomial(Approximator):
         descent.
 
         Args:
-        * x (Tuple/np.ndarray): A *2D* array representing a single instance.
-        * y (ndarray): A *1D* array of values to be learned at that point.
+        * x (Tuple/np.ndarray): A *2D* array representing a single instance in
+        each row.
+        * y (Tuple, ndarray): A *1D* array of values to be learned at that point
+        corresponding to each row of features in x.
         """
         x, y = np.asarray(x), np.asarray(y)
         self.model.partial_fit(self._project(x), y)
@@ -74,10 +76,11 @@ class Polynomial(Approximator):
         Predict value from the learned function given the input x.
 
         Args:
-        * x (Tuple/np.ndarray): A *2D* array representing a single instance.
+        * x (Tuple/np.ndarray): A *2D* array representing a single instance in
+        each row.
 
         Returns:
-        * A *1D* array of predictions for each feature in `x`.
+        * A *1D* array of predictions for each instance in `x`.
         """
         x = np.asarray(x)
         try:
