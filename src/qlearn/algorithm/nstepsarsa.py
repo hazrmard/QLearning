@@ -19,7 +19,8 @@ def nstepsarsa(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
     Args:
     * agent: The agent calling the learning function.
     * memory: A Memory instance that can store and sample past observations.
-    * discount: The discount level for future rewards. Between 0 and 1.
+    * discount: The discount level for future rewards. Between 0 and 1. If -1,
+      then return is average of rewards instead of a discounted sum.
     * steps: The number of steps to accumulate reward.
     * maxsteps: Number of steps at most to take if episode continues.
     * kwargs: All other keyword arguments discarded silently.
@@ -46,6 +47,13 @@ def nstepsarsa(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
                         len_space_tuple(agent.env.action_space)))
     batchY = np.zeros(memory.batchsize)
 
+    # Choice between using discounted total returns, or average returns.
+    if discount == -1:
+        average_returns = True
+        discount = 1
+    else:
+        average_returns = False
+
     # update states until penultimate state. No action is taken from the final
     # state, therefore there is no reward to consider.
     while tau < T - 1:
@@ -70,19 +78,28 @@ def nstepsarsa(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
         # returns for states observed earlier.
         tau = t - steps
         if tau >= 0:
-            partial_ret, k = 0., 0
-            for k in range(tau, min(tau + steps + 1, T)):
-                partial_ret += discount**k * rewards[k]
-            
+            partial_ret = 0.    # partial return (without adding final value)
+            horizon = min(tau + steps + 1, T)   # final timestep relative to episode
+            lookahead = horizon - tau           # ...relative to tau i.e. interval
+            k = 0               # index from current state being valued
+            for k in range(lookahead):
+                partial_ret += discount**k * rewards[tau + k]
+
             # memorize experience
             memory.append((states[tau], actions[tau], partial_ret, states[k+1],\
                             actions[k+1], k))
+
             # replay experience from memory
             samples = memory.sample()
             for i, (s, a, partial_r, ns, na, k) in enumerate(samples):
                 # calculate new estimate of return
                 nvalue = agent.value.predict(((*ns, *na),))[0]
                 ret = partial_r + discount**(k+1) * nvalue
+                # If discount=-1 initially, then calculate mean return instead
+                # of discounted total return. k+2 is the number of terms in
+                # the return calculation (k+1 rewards + 1 prior value term)
+                if average_returns:
+                    ret /= k + 2
                 # fill batch with state/actions -> values
                 batchX[i] = [*s, *a]
                 batchY[i] = ret

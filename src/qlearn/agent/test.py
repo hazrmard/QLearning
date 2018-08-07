@@ -13,6 +13,7 @@ class TestAgent(unittest.TestCase):
 
 
     def setUp(self):
+
         # dummy environment
         state_space = gym.spaces.Box(low=-10, high=9, shape=(1,), dtype=int)
         action_space = gym.spaces.Discrete(2)

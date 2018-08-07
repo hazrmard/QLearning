@@ -37,6 +37,7 @@ class QAgent(Agent):
         changes for each episode (for GREEDY policy).
         * memsize: Size of experience memory. Default 1 most recent observation.
         * batchsize: Number of past experiences to replay. Default 1.
+        
         If a parameter is a `Schedule`, it is evaluated for each episode and
         passed as a number.
 
@@ -70,7 +71,8 @@ class NStepTDAgent(Agent):
         * steps: The number of steps to accumulate reward. Default=5.
         * epsilon: A `Schedule` instance describing how the exploration rate
         changes for each episode (for GREEDY policy).
-        * discount: The discount level for future rewards. Between 0 and 1.
+        * discount: The discount level for future rewards. Between 0 and 1. If -1,
+        then return is average of rewards instead of a discounted sum.
         * maxsteps: Number of steps at most to take if episode continues.
         * memsize: Size of experience memory. Default 1 most recent observation.
         * batchsize: Number of past experiences to replay. Default 1.
