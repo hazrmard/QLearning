@@ -127,7 +127,7 @@ class Agent:
         * policy (str): The action selection policy. Used durung learning/
         exploration to randomly select actions from a state. One of
         `agent.[UNIFORM | GREEDY | SOFTMAX]`. Default UNIFORM.
-        * episolon: A `Schedule` instance describing how the exploration rate
+        * episilon: A `Schedule` instance describing how the exploration rate
         changes for each episode (for GREEDY policy).
         * memsize: Size of experience memory. Default 1 most recent observation.
         * batchsize: Number of past experiences to replay. Default 1.
@@ -148,11 +148,11 @@ class Agent:
             kw = evaluate_schedule_kwargs(i, **kwargs)
             r = algorithm(self, memory=memory, **kw)
             histories[i] = r
-        
+
         return histories
 
 
-    def recommend(self, state: Tuple[Union[int, float]]):
+    def recommend(self, state: Tuple[Union[int, float]]) -> Tuple[Union[int, float]]:
         """
         Recommends an action based on the learned value function.
         Must be called after learn().
@@ -191,7 +191,7 @@ class Agent:
         Returns:
         * The action tuple.
         """
-        if self.random.uniform() < self.eps_curr:
+        if self.random.uniform() >= self.eps_curr:
             return self.recommend(state)
         else:
             return self._uniform_policy(state)

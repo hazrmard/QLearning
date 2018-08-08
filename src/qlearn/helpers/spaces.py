@@ -277,7 +277,7 @@ def to_space(space: Space, sample: Tuple) -> Union[tuple, np.ndarray, int,\
     if isinstance(space, Discrete):
         return sample[0]
     elif isinstance(space, (MultiBinary, MultiDiscrete)):
-        return tuple(sample)
+        return np.asarray(sample, dtype=space.dtype)
     elif isinstance(space, Box):
         return np.asarray(sample).reshape(space.shape).astype(space.dtype)
     elif isinstance(space, TupleSpace):

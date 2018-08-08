@@ -38,8 +38,8 @@ class Environment(Env):
     """
 
 
-    def __init__(self, reward: Callable[[Any, Any, Any], float],\
-                transition: Callable[[Any, Any], Any],\
+    def __init__(self, reward: Callable[[Any, Any, Any], float],
+                transition: Callable[[Any, Any], Any],
                 observation_space: Space, action_space: Space,
                 goal: Callable[[Any], bool], maxsteps: int=np.inf,
                 random_state: Union[int, RandomState]=None):

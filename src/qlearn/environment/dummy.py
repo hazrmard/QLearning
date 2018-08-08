@@ -9,6 +9,53 @@ from .environment import Environment
 
 
 
+class DummySwitch(Environment):
+    """
+    A discrete environment represented by a switch taking a finite number of
+    states. A state is represented by a single number. An action moves the state
+    value up, down, or remains static.
+    """
+
+    NSTATES = 5
+    GOAL_STATES = (2,)
+
+
+    @classmethod
+    def goal_func(cls, state: int) -> bool:
+        return state in cls.GOAL_STATES
+
+
+    @classmethod
+    def transition_func(cls, state: int, action: int) -> int:
+        nstate = state + action - 1
+        if nstate < 0:
+            return 0
+        if nstate >= cls.NSTATES:
+            return cls.NSTATES
+        return nstate
+
+
+    @classmethod
+    def reward_func(cls, state: int, action: int, nstate: int) -> float:
+        if nstate in cls.GOAL_STATES:
+            return 0
+        return -1
+
+
+    def __init__(self, random_state=None):
+        observation_space = Discrete(self.NSTATES)
+        action_space = Discrete(3)
+        maxsteps = 2 * self.NSTATES
+        super().__init__(reward=self.reward_func,
+                         transition=self.transition_func,
+                         observation_space=observation_space,
+                         action_space=action_space,
+                         goal=self.goal_func,
+                         maxsteps=maxsteps,
+                         random_state=random_state)
+
+
+
 class Dummy1DContinuous(Environment):
     """
     A 1D line with limits `+/- MAX_X`, `+/- MAX_V`, and `+/- MAX_A` for
@@ -19,6 +66,15 @@ class Dummy1DContinuous(Environment):
 
       |---------- 0 ----------|
     -MAX_X                  +MAX_X
+
+    Class attributes:
+
+    * `MAX_V`, `MAX_A`, `MAX_X`: maximum values of displacement, velocity,
+    acceleration.
+    * `GOAL_X`, `GOAL_V`: The goal displacement and velocity as a fraction
+    of maximum values.
+    * `GOAL_X_TOL`, `GOAL_V_TOL`: Relative tolerances of goal state values as a
+    fraction of maximum values.
     """
 
     MAX_V = 0.05
@@ -33,7 +89,7 @@ class Dummy1DContinuous(Environment):
 
 
     @classmethod
-    def goal_func(cls, state):
+    def goal_func(cls, state: np.ndarray) -> bool:
         x_rel, v_rel = state
         centre_x = abs(x_rel - cls.GOAL_X)
         centre_v = abs(v_rel - cls.GOAL_V)
@@ -41,7 +97,7 @@ class Dummy1DContinuous(Environment):
 
 
     @classmethod
-    def transition_func(cls, state, action):
+    def transition_func(cls, state: np.ndarray, action: int) -> np.ndarray:
         x, v = state[0] * cls.MAX_X, state[1] * cls.MAX_V
         dv = cls.MAX_A * (action * 2 - 1)
         v += dv
@@ -52,7 +108,7 @@ class Dummy1DContinuous(Environment):
 
 
     @classmethod
-    def reward_func(cls, state, action, nstate):
+    def reward_func(cls, state: np.ndarray, action: int, nstate: np.ndarray) -> float:
         if cls.goal_func(nstate):
             return 10
         return -1
@@ -62,7 +118,7 @@ class Dummy1DContinuous(Environment):
         return -centre_x - centre_v
 
 
-    def __init__(self):
+    def __init__(self, random_state=None):
         action_space = Discrete(2)
         observation_space = Box(low=np.asarray((-1, -1)),\
                                 high=np.asarray((1, 1)), dtype=float)
@@ -71,8 +127,9 @@ class Dummy1DContinuous(Environment):
         accel_x =  (accel_steps + 1) * self.MAX_V / 2
         min_goal_steps = (self.MAX_X - abs(self.GOAL_X) - accel_x) / self.MAX_V + accel_steps
         super().__init__(reward=self.reward_func,
-                        transition=self.transition_func,
-                        goal=self.goal_func,
-                        observation_space=observation_space,
-                        action_space=action_space,
-                        maxsteps=2*min_goal_steps)
+                         transition=self.transition_func,
+                         goal=self.goal_func,
+                         observation_space=observation_space,
+                         action_space=action_space,
+                         maxsteps=int(2*min_goal_steps),
+                         random_state=random_state)

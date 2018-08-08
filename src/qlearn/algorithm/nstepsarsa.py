@@ -86,8 +86,8 @@ def nstepsarsa(agent: 'Agent', memory: 'Memory', discount: float, steps: int=0,\
                 partial_ret += discount**k * rewards[tau + k]
 
             # memorize experience
-            memory.append((states[tau], actions[tau], partial_ret, states[k+1],\
-                            actions[k+1], k))
+            memory.append((states[tau], actions[tau], partial_ret, states[tau+k+1],\
+                            actions[tau+k+1], k))
 
             # replay experience from memory
             samples = memory.sample()

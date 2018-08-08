@@ -22,8 +22,7 @@ class Polynomial(Approximator):
     * random_state: Integer seed or `np.random.RandomState` instance.
     * default (float): The default value to return if predict called before fit.
     * kwargs: Any keyword arguments to be fed to sklearn.linear_model.SGDRegressor
-    which fits to the function. Hard-coded arguments are `warm_start`, `max_iter`,
-    and `fit_intercept`.
+    which fits to the function. Hard-coded arguments are `fit_intercept`.
     """
 
     def __init__(self, order: int, default=0., tol: float=1e-3,\
