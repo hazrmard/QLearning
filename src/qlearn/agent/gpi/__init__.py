@@ -13,6 +13,8 @@ All `Agent`s have the following API:
   and store rewards for each episode.
   * `recommend(state)` returns the most valuable action to take. The state and
   returned action are tuples of int/float.
+  * `next_action(state)` returns the next action to take based on an exploratory
+  policy. Arguments and returns are tuples of int/float.
 """
 
 from .agent import Agent

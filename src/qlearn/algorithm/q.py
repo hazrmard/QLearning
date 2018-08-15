@@ -37,7 +37,6 @@ def q(agent: 'Agent', memory: 'Memory', discount: float, maxsteps: int=np.inf,\
     batchY = np.zeros(memory.batchsize)
 
     while (not done) and (t < maxsteps):
-        t += 1
         # select exploratory action
         action = agent.next_action(state)
         # observe next state and rewards
@@ -57,7 +56,8 @@ def q(agent: 'Agent', memory: 'Memory', discount: float, maxsteps: int=np.inf,\
             batchY[i] = ret
         # update value function with new estimate
         agent.value.update(batchX, batchY)
-
         state = nstate
         rewards.append(reward)
+        t += 1
+
     return np.sum(rewards)

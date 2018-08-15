@@ -1,6 +1,7 @@
 """
 The base `Agent` class for Generalized Policy Iteration. Relies on a value
-function to derive policy and take actions.
+function to derive policy and take actions. Implements various action selection
+policies.
 """
 from itertools import zip_longest
 from typing import Generator, Tuple, Union, Callable
@@ -23,7 +24,7 @@ class Agent:
     """
     A single-threaded agent that operates on continuous, discrete, and hybrid
     state and action spaces. Learning is episodic, based on generalized policy
-    iteration, and uses experience-replay.
+    iteration (GPI), and uses experience-replay.
 
     Args:
     * env: The environment to operate on. Must be compatible with `gym.Env`.
@@ -86,7 +87,7 @@ class Agent:
         episode.
 
         Args:
-        * policy (str): One of QLearner.[UNIFORM | GREEDY | SOFTMAX].
+        * policy (str): One of Agent.[UNIFORM | GREEDY | SOFTMAX].
         """
         self.policy = policy
 

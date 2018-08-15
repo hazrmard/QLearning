@@ -78,7 +78,7 @@ class TestAgent(unittest.TestCase):
     def test_greedy_policy(self):
         agent = Agent(self.env, self.approx)
         agent.set_action_selection_policy(GREEDY)
-        agent.eps_curr = 1.0
+        agent.eps_curr = 0.0 # no exploration, only exploitation
         self.approx.values = np.zeros((20, 2))
         self.approx.values[0:10, 1] = 1
         self.approx.values[10:20, 0] = 1
