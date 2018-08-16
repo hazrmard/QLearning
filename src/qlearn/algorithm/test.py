@@ -11,7 +11,9 @@ from ..algorithm import q, nsteptd, nstepsarsa
 
 class DummyEnv(dummy.DummyIdentity):
     """
-    An identity environment with only 2 states.
+    An identity environment with only 2 states. Taking action=0 gives reward=-1,
+    taking action=1 gives reward=0. Episode terminates when `maxsteps` actiosn
+    have been taken.
     """
 
     NSTATES = 2
@@ -43,19 +45,45 @@ class DummyAgent(Agent):
 class TestGPIAlgorithms(unittest.TestCase):
 
     def setUp(self):
-        self.env = DummyEnv()
-        self.env.maxsteps = 3
-        self.value = Tabular(dims=(2,2), lrate=1e-1)
+        self.lrate = 1e-1
+        self.maxsteps = 3
+
+        self.env = DummyEnv(maxsteps=self.maxsteps)
+        self.value = Tabular(dims=(2,2), lrate=self.lrate)
+        self.agent0 = DummyAgent(actions=((0,),), env=self.env, value_function=self.value)
+        self.agent1 = DummyAgent(actions=((1,),), env=self.env, value_function=self.value)
+        
         self.value.table *= 0
-        self.agent = DummyAgent(actions=((0,),), env=self.env, value_function=self.value)        
 
 
 
     def test_q(self):
-        r = self.agent.learn(algorithm=q, episodes=1, discount=1)
-        expected = -0.1 + (-0.09) + (-0.081)
-        actual = self.agent.value.table[0,0]
-        self.assertAlmostEqual(expected, actual)
+        r0 = self.agent0.learn(algorithm=q, episodes=1, discount=1)
+        expected0 = -0.1 + (-0.09) + (-0.081)
+        actual0 = self.agent0.value.table[0,0]
+        self.assertAlmostEqual(expected0, actual0)
+
+
+
+    def test_nstepsarsa(self):
+        r0 = self.agent0.learn(algorithm=nstepsarsa, episodes=1, discount=1, steps=1)
+        expected0 = 0
+        expected0 += self.lrate*(-1-1+0)
+        expected0 += self.lrate*((-1-1+expected0) - expected0)
+        expected0 += self.lrate*((-1+expected0) - expected0)    # terminal state reached, lookahead contracted
+        actual0 = self.agent0.value.table[0,0]
+        self.assertAlmostEqual(expected0, actual0)
+
+
+
+    def test_nsteptd(self):
+        r0 = self.agent0.learn(algorithm=nsteptd, episodes=1, discount=1, steps=1)
+        expected0 = 0
+        expected0 += self.lrate*(-1-1+0)
+        expected0 += self.lrate*((-1-1+0) - expected0)
+        expected0 += self.lrate*((-1+0) - expected0)    # terminal state reached, lookahead contracted
+        actual0 = self.agent0.value.table[0,0]
+        self.assertAlmostEqual(expected0, actual0)
 
 
 

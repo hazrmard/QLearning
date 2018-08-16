@@ -16,8 +16,8 @@ class DummyIdentity(DummySwitch):
         return action
 
 
-    def __init__(self, random_state=None):
+    def __init__(self, maxsteps=3, random_state=None):
         observation_space = Discrete(self.NSTATES)
         action_space = Discrete(self.NSTATES)
-        maxsteps = 2 * self.NSTATES
         super().__init__(random_state=random_state)
+        self.maxsteps = maxsteps
