@@ -1,3 +1,7 @@
+**Note**: The `dev` branch of this repository has been migrated to a separate repository [`Agents`](https://github.com/hazrmard/Agents). This `legacy` branch contains reference code for IFAC Safeproccess 2018 paper: *Comparison of Model Predictive and Reinforcement Learning Methods for Fault Tolerant Control by Ibrahim Ahmed, Gautam Biswas, and Hamed Khorasgani*.
+
+---
+
 # QLearning
 
 A Reinforcement Learning library.
