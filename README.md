@@ -46,7 +46,7 @@ The default learning algorithm is n-step tree back-up with variable step sizes.
   * matplotlib
 
 1. Install [Python 3](https://www.python.org/downloads/).
-2. Download/clone this repository.
+2. [Download](https://github.com/hazrmard/QLearning/archive/legacy.zip)/clone this repository.
 3. Open terminal/console and navigate to this cloned repository. Then use the package manager `pip` to install dependencies:
 
 ```
@@ -63,9 +63,25 @@ The `models/` directory comes with a 6-tank model for a C-130 plane's fuel tanks
 
 The code ships with a simple model of 6 fuel tanks in a plane. The state space is 12 dimensional (6 tank levels + 6 valve states). The action space is 6 dimensional (6 valve states).
 
-The `SixTanksModel` class is a programmatic model of the tanks. The class has
-a `run()` method which simulates the next state, given current tank levels,
-valve states, and action. For more details, see `models/fuel_tanks.py`.
+```
+    T1  T2  TLA | TRA T3  T4
+```
+
+Each tank is controlled by a valve connected to a shared conduit for fuel transfer between tanks. Fuel pumps remove fuel to the engines according to pre-defined logic.
+
+The state space is the fuel level in tanks (0-100) and the state of valves (on/off).
+
+```
+    [T1  T2  TLA TRA T3  T4 V1  V2  VLA VRA V3  V4]
+```
+
+The action space is the state of valves.
+
+```
+[V1  V2  VLA VRA V3  V4]
+```
+
+The `SixTanksModel` class is a programmatic model of the tanks. The class has a `run()` method which simulates the next state, given current tank levels, valve states, and action. For more details, see `models/fuel_tanks.py`.
 
 ```python
 from models import SixTankModel
