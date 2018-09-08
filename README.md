@@ -108,3 +108,5 @@ python tankscustom.py -h
 # visualize tank model behavior
 # python tankscustom.py -x
 ```
+
+The visualization can be viewed at http://localhost:5000
