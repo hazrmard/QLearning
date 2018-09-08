@@ -45,9 +45,12 @@ The default learning algorithm is n-step tree back-up with variable step sizes.
   * ahkab
   * matplotlib
 
-Install [Python 3](https://www.python.org/downloads/). Open terminal/console and navigate to this cloned repository. Then use the package manager `pip` to install dependencies:
+1. Install [Python 3](https://www.python.org/downloads/).
+2. Download/clone this repository.
+3. Open terminal/console and navigate to this cloned repository. Then use the package manager `pip` to install dependencies:
 
 ```
+cd Qlearning
 pip install -r requirements.txt
 ```
 
@@ -56,11 +59,13 @@ pip install -r requirements.txt
 
 The `models/` directory comes with a 6-tank model for a C-130 plane's fuel tanks.
 
-### SixTanksModel
+### SixTankModel
+
+The code ships with a simple model of 6 fuel tanks in a plane. The state space is 12 dimensional (6 tank levels + 6 valve states). The action space is 6 dimensional (6 valve states).
 
 The `SixTanksModel` class is a programmatic model of the tanks. The class has
 a `run()` method which simulates the next state, given current tank levels,
-valve states, and action.
+valve states, and action. For more details, see `models/fuel_tanks.py`.
 
 ```python
 from models import SixTankModel
@@ -74,7 +79,11 @@ next_state = tanks.run(state=(10, 20, 10, 30, 14, 50, 0, 0, 1, 1, 0, 1),
 
 ### Visualizing demo
 
-The tanks model can be seen in a browser (http://localhost:5000):
+There are several demos illustrating various control approaches to the problem of fuel transfer. The process can be visualized  in a browser. The three scripts `tankssimple.py`, `tanksnetlist.py` and `tankscustom.py` use different approaches to modelling the system:
+
+* `tankssimple.py`: Models tanks as a circuit of capacitors and current sources. Creates a netlist at runtime to simulate.
+* `tankssimple.py`: Models tanks as a circuit of capacitors and resistors. Loads a netlist file `models/tanks.netlist`.
+* `tankscustom.py`: Models tanks as a set of formulae written in python. Uses the `SixTankModel` class defined in `models/fuel_tanks.py`.
 
 ```
 # to see help message about arguments
