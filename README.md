@@ -63,7 +63,7 @@ a `run()` method which simulates the next state, given current tank levels,
 valve states, and action.
 
 ```python
-from models import SixTanksModel
+from models import SixTankModel
 
 tanks = SixTankModel()
 
