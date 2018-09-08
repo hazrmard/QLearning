@@ -6,6 +6,8 @@ auxiliary tanks which feed into the primary tanks. The system drains outer tanks
 first before using inner tanks to feed engines. Faults in the system are leak(s)
 in fuel tanks. Only a single fault occurs at a time.
 
+For more information, see models/fuel_tanks.py
+
 Two kinds of control are implemented:
     - Reinforcement learning: The controller explores a sample of the state space
         to estimate values for different actions. Actions with the largest
@@ -25,7 +27,9 @@ Fuel tanks are arranged physically (and indexed) as:
 
 Usage:
 
-> python tanks.py --help
+> python tanks.py --help    # view arguments help
+> python tanks.py -x        # simply simulate the tanks
+> python tanks.py -x -f 3   # simulate tanks with fault in third tank (LAux)
 > python .\tankscustomdemo.py -c 2e-4 -f 6 -r 0.2 -s 5 -m 10 -e 0.75
 > python .\tankscustomdemo.py --usempc -m 1
 
@@ -43,9 +47,10 @@ import random
 import flask
 import numpy as np
 from scipy.integrate import trapz
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 from qlearn import SLearner
 from qlearn import FlagGenerator
+from models import SixTankModel
 
 
 
@@ -60,13 +65,13 @@ STEPS = 1           # Number of steps to look ahead during learning
 DENSITY = 1.0       # Fraction of neighbouring states sampled for episodes when exploring
 SEED = None         # Random number seed
 FAULT = list(range(7))         # Default set of faults
-DELTA_T = 1
-FUNCDIM = 7
+DELTA_T = 1         # step size of simulation
+FUNCDIM = 7         # dimensions in value function
 
 # Set up command-line configuration
-args = ArgumentParser()
+args = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
 args.add_argument('-i', '--initial', metavar=tuple(['L']*6 + ['A']*6), type=float, 
-                  nargs=12, help="Initial tank levels and switch values.",
+                  nargs=12, help="Initial tank levels (0-100) and switch values (0/1).",
                   default=[100, 100, 100, 100, 100, 100, 0, 0, 0, 0, 0, 0])
 args.add_argument('-c', '--coverage', metavar='C', type=float,
                   help="Fraction of states to cover in learning", default=COVERAGE)
@@ -102,124 +107,6 @@ args.add_argument('--verbose', action='store_true',
                   help="Print parameters used.", default=False)
 ARGS = args.parse_args()
 
-
-
-class SixTankModel:
-    def __init__(self, fault=0, noise=0, seed=None):
-        self.R = 4.00
-        self.F = 8.00
-        self.fault = fault
-        self.noise = noise
-        self.random = np.random.RandomState(seed)
-
-
-    def set_state(self, S):
-        self.tank_1 = S[0]
-        self.tank_2 = S[1]
-        self.tank_LA = S[2]
-        self.tank_RA = S[3]
-        self.tank_3 = S[4]
-        self.tank_4 = S[5]
-        self.DL = S[6]
-        self.EL = S[7]
-        self.FL = S[8]
-        self.FR = S[9]
-        self.ER = S[10]
-        self.DR = S[11]
-    
-
-    def set_action(self, A):
-        self.DL = A[0]
-        self.EL = A[1]
-        self.FL = A[2]
-        self.FR = A[3]
-        self.ER = A[4]
-        self.DR = A[5]
-
-
-    def run(self, state, action, stepsize=DELTA_T, **kwargs):
-        self.set_state(state)
-        self.set_action(action)
-        if ((self.tank_1 + self.tank_2 + self.tank_LA) >= 10 and (self.tank_3 + self.tank_4 + self.tank_RA) >= 10):
-            demand_left = 10
-            demand_right = 10
-        else:
-            if ((self.tank_1 + self.tank_2 + self.tank_LA) >= 10):
-                demand_right = self.tank_3 + self.tank_4 + self.tank_RA
-                if ((self.tank_1 + self.tank_2 + self.tank_LA) >= (10 + 10 - demand_right)):
-                    demand_left = 10 + 10 - demand_right
-                else:
-                    demand_left = self.tank_1 + self.tank_2 + self.tank_LA
-            if ((self.tank_3 + self.tank_4 + self.tank_RA) >= 10):
-                demand_left = self.tank_1 + self.tank_2 + self.tank_LA
-                if ((self.tank_3 + self.tank_4 + self.tank_RA) >= (10 + 10 - demand_left)):
-                    demand_right = 10 + 10 - demand_left
-                else:
-                    demand_right = self.tank_3 + self.tank_4 + self.tank_RA
-            if ((self.tank_1 + self.tank_2 + self.tank_LA) < 10 and (self.tank_3 + self.tank_4 + self.tank_RA) < 10):
-                demand_left = self.tank_1 + self.tank_2 + self.tank_LA
-                demand_right = self.tank_3 + self.tank_4 + self.tank_RA
-
-        if (self.tank_1 >= demand_left):
-            pump_1 = demand_left
-            pump_2 = 0
-            pump_LA = 0
-        else:
-            pump_1 = self.tank_1
-            if (self.tank_2 >= (demand_left - self.tank_1)):
-                pump_2 = demand_left - self.tank_1
-                pump_LA = 0
-            else:
-                pump_2 = self.tank_2
-                pump_LA = demand_left - self.tank_1 - self.tank_2
-        if (self.tank_4 >= demand_right):
-            pump_4 = demand_right
-            pump_3 = 0
-            pump_RA = 0
-        else:
-            pump_4 = self.tank_4
-            if (self.tank_3 >= (demand_right - self.tank_4)):
-                pump_3 = demand_right - self.tank_4
-                pump_RA = 0
-            else:
-                pump_3 = self.tank_3
-                pump_RA = demand_right - self.tank_3 - self.tank_4
-        
-        self.tank_1 = self.tank_1 - pump_1
-        self.tank_2 = self.tank_2 - pump_2
-        self.tank_LA = self.tank_LA - pump_LA
-        self.tank_RA = self.tank_RA - pump_RA
-        self.tank_3 = self.tank_3 - pump_3
-        self.tank_4 = self.tank_4 - pump_4
-        
-        if ((self.DL + self.EL + self.FL + self.FR + self.ER + self.DR) == 0):
-            p = 0
-        else:
-            p = (self.tank_1 * self.DL + self.tank_2 * self.EL + self.tank_LA * self.FL
-                 + self.tank_RA * self.FR + self.tank_3 * self.ER + self.tank_4 * self.DR) / float(self.DL + self.EL + self.FL + self.FR + self.ER + self.DR)
-        
-        self.tank_1 = self.tank_1 + self.DL * \
-            (((p / self.R) - (self.tank_1 / self.R)) * (stepsize)) \
-            - ((self.tank_1 / self.F) * (stepsize) if self.fault == 1 else 0)
-        self.tank_2 = self.tank_2 + self.EL * \
-            (((p / self.R) - (self.tank_2 / self.R)) * (stepsize)) \
-            - ((self.tank_2 / self.F) * (stepsize) if self.fault == 2 else 0)
-        self.tank_LA = self.tank_LA + self.FL * \
-            (((p / self.R) - (self.tank_LA / self.R)) * (stepsize)) \
-            - ((self.tank_LA / self.F) * (stepsize) if self.fault == 3 else 0)
-        self.tank_RA = self.tank_RA + self.FR * \
-            (((p / self.R) - (self.tank_RA / self.R)) * (stepsize)) \
-            - ((self.tank_RA / self.F) * (stepsize) if self.fault == 4 else 0)
-        self.tank_3 = self.tank_3 + self.ER * \
-            (((p / self.R) - (self.tank_3 / self.R)) * (stepsize)) \
-            - ((self.tank_3 / self.F) * (stepsize) if self.fault == 5 else 0)
-        self.tank_4 = self.tank_4 + self.DR \
-            * (((p / self.R) - (self.tank_4 / self.R)) * (stepsize)) \
-            - ((self.tank_4 / self.F) * (stepsize) if self.fault == 6 else 0)
-        
-        noisy = self.random.normal(1, self.noise, 6) * \
-                [self.tank_1, self.tank_2, self.tank_LA, self.tank_RA, self.tank_3, self.tank_4]
-        return np.concatenate((noisy, action))
 
 
 

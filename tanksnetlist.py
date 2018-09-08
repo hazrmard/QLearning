@@ -31,7 +31,7 @@ Requires:
 
 import numpy as np
 import flask
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 from qlearn import Netlist
 from qlearn import Resistor
 from qlearn import FlagGenerator
@@ -64,7 +64,7 @@ STEPS = 1           # Number of steps to look ahead during learning
 SEED = None         # Random number seed
 
 # Set up command-line configuration
-args = ArgumentParser()
+args = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
 args.add_argument('-i', '--initial', metavar=tuple(['L']*NUM_TANKS + ['A']), type=float, 
                   nargs=NUM_TANKS+1, help="Initial tank levels and first action",
                   default=None)

@@ -21,7 +21,7 @@ Requires:
     ahkab
 """
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 import flask
 import numpy as np
 from qlearn import SLearner
@@ -240,7 +240,7 @@ def create_server(learner, T, N):
 
 if __name__ == '__main__':
     # Set up command-line arguments
-    args = ArgumentParser()
+    args = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
     args.add_argument('-t', '--tanks', metavar='T', type=int,
                       help="Number of tanks", default=2)
     args.add_argument('-n', '--num_levels', metavar='N', type=int,

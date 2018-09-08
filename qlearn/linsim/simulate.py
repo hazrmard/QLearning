@@ -11,7 +11,10 @@ All simulators expose the following interface:
 
 import os
 os.environ['LANG'] = 'en_US.UTF-8'
-import ahkab
+try:
+    import ahkab
+except ImportError:
+    print("Ahkab could not be imported. Netlist-based simulation will not work.")
 import numpy as np
 
 # Fixed time-step too small error. Make larger if errors persist.

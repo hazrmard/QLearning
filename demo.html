@@ -28,8 +28,8 @@
             var O = {{ O }};    // Tank order
             {% endautoescape %}
 
-            var W = d3.select("svg")._groups[0][0].clientWidth;
-            var H = d3.select("svg")._groups[0][0].clientHeight;
+            var W = d3.select("svg")._groups[0][0].clientWidth | document.getElementsByTagName("svg")[0].getBoundingClientRect().width;
+            var H = d3.select("svg")._groups[0][0].clientHeight | document.getElementsByTagName("svg")[0].getBoundingClientRect().height;
             var timeout = 1000;
             var width = W / (2*T);  // width of each tank
             var height = H / 3;     // height of tank, graph
