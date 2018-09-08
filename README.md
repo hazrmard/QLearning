@@ -48,7 +48,7 @@ The default learning algorithm is n-step tree back-up with variable step sizes.
 Install [Python 3](https://www.python.org/downloads/). Open terminal/console and navigate to this cloned repository. Then use the package manager `pip` to install dependencies:
 
 ```
-pip install -r reaqirements.txt
+pip install -r requirements.txt
 ```
 
 
