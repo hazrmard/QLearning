@@ -1,0 +1,5 @@
+numpy
+scipy
+ahkab
+flask
+matplotlib
