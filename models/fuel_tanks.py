@@ -78,26 +78,45 @@ class SixTankModel:
         """
         self.set_state(state)
         self.set_action(action)
-        if ((self.tank_1 + self.tank_2 + self.tank_LA) >= 10 and (self.tank_3 + self.tank_4 + self.tank_RA) >= 10):
-            demand_left = 10
-            demand_right = 10
-        else:
-            if ((self.tank_1 + self.tank_2 + self.tank_LA) >= 10):
-                demand_right = self.tank_3 + self.tank_4 + self.tank_RA
-                if ((self.tank_1 + self.tank_2 + self.tank_LA) >= (10 + 10 - demand_right)):
-                    demand_left = 10 + 10 - demand_right
-                else:
-                    demand_left = self.tank_1 + self.tank_2 + self.tank_LA
-            if ((self.tank_3 + self.tank_4 + self.tank_RA) >= 10):
-                demand_left = self.tank_1 + self.tank_2 + self.tank_LA
-                if ((self.tank_3 + self.tank_4 + self.tank_RA) >= (10 + 10 - demand_left)):
-                    demand_right = 10 + 10 - demand_left
-                else:
-                    demand_right = self.tank_3 + self.tank_4 + self.tank_RA
-            if ((self.tank_1 + self.tank_2 + self.tank_LA) < 10 and (self.tank_3 + self.tank_4 + self.tank_RA) < 10):
-                demand_left = self.tank_1 + self.tank_2 + self.tank_LA
-                demand_right = self.tank_3 + self.tank_4 + self.tank_RA
 
+        # set outflow through pumps
+        demand = 10 * stepsize      # total fuel requirement per side by engine pumps
+
+        total_left = self.tank_1 + self.tank_2 + self.tank_LA
+        total_right = self.tank_3 + self.tank_4 + self.tank_RA
+
+        # If both sides have fuel more than pump demand, then nominal outflow
+        if (total_left >= demand and total_right >= demand):
+            demand_left = demand
+            demand_right = demand
+        
+        # If one side has less fuel than pump demand, then pump out however much
+        # is possible.
+        # If one side has more fuel than demand, and enough fuel to make up for
+        # the deficit on the other side, then the other side's load is reallocated.
+        else:
+            # Left has more than demand
+            if (total_left >= demand):
+                demand_right = total_right
+                # Left has more than enough to satisfy right's deficit
+                if (total_left >= (demand + demand - demand_right)):
+                    demand_left = demand + demand - demand_right
+                else:
+                    demand_left = total_left
+            # Right has more than demand
+            if (total_right >= demand):
+                demand_left = total_left
+                # Right has more than enough to satisfy left's deficit
+                if (total_right >= (demand + demand - demand_left)):
+                    demand_right = demand + demand - demand_left
+                else:
+                    demand_right = total_right
+            # Neither side has enough fuel
+            if (total_left < demand and total_right < demand):
+                demand_left = total_left
+                demand_right = total_right
+
+        # Distribute demand on each side between individual tank pumps
         if (self.tank_1 >= demand_left):
             pump_1 = demand_left
             pump_2 = 0
@@ -123,6 +142,7 @@ class SixTankModel:
                 pump_3 = self.tank_3
                 pump_RA = demand_right - self.tank_3 - self.tank_4
         
+        # Pump out fuel to engines from each tank
         self.tank_1 = self.tank_1 - pump_1
         self.tank_2 = self.tank_2 - pump_2
         self.tank_LA = self.tank_LA - pump_LA
@@ -130,12 +150,14 @@ class SixTankModel:
         self.tank_3 = self.tank_3 - pump_3
         self.tank_4 = self.tank_4 - pump_4
         
+        # compute total "pressure" in the conduit between tank valves
         if ((self.DL + self.EL + self.FL + self.FR + self.ER + self.DR) == 0):
             p = 0
         else:
             p = (self.tank_1 * self.DL + self.tank_2 * self.EL + self.tank_LA * self.FL
                  + self.tank_RA * self.FR + self.tank_3 * self.ER + self.tank_4 * self.DR) / float(self.DL + self.EL + self.FL + self.FR + self.ER + self.DR)
         
+        # Redistribute fuel between tanks where valves are open
         self.tank_1 = self.tank_1 + self.DL * \
             (((p / self.R) - (self.tank_1 / self.R)) * (stepsize)) \
             - ((self.tank_1 / self.F) * (stepsize) if self.fault == 1 else 0)
@@ -155,6 +177,7 @@ class SixTankModel:
             * (((p / self.R) - (self.tank_4 / self.R)) * (stepsize)) \
             - ((self.tank_4 / self.F) * (stepsize) if self.fault == 6 else 0)
         
+        # Add noise if specified
         noisy = self.random.normal(1, self.noise, 6) * \
                 [self.tank_1, self.tank_2, self.tank_LA, self.tank_RA, self.tank_3, self.tank_4]
         return np.concatenate((noisy, action))
